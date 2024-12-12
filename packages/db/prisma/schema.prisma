@@ -1,0 +1,89 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       String  @id @unique @default(cuid())
+  name     String 
+  username String  @unique
+  password String
+  avatarId String?
+  role     Role
+  spaces   Space[]
+  avatar    Avatar? @relation(fields: [avatarId], references: [id])
+}
+
+model Space {
+  id        String  @id @unique @default(cuid())
+  name      String
+  width     Int
+  height    Int
+  thumbnail String?
+  creatorId String
+  creator     User    @relation(fields: [creatorId], references: [id])
+  elements  spaceElements[]
+}
+
+model spaceElements {
+  id        String @id @unique @default(cuid())
+  elementId String
+  spaceId   String
+  static    Boolean
+  x         Int
+  y         Int
+  space     Space  @relation(fields: [spaceId], references: [id])
+  element   Element @relation(fields: [elementId], references: [id])
+}
+
+model Element {
+  id              String @id @unique @default(cuid())
+  width           Int
+  height          Int
+  static          Boolean
+  imageUrl        String
+  spaces          spaceElements[]
+  mapElements     MapElements[]
+}
+
+model Map {
+  id     String  @id @unique @default(cuid())
+  width  Int
+  height Int
+  name   String
+  thumbnail String
+  mapElements MapElements[]
+}
+
+model MapElements {
+  id        String  @id @unique @default(cuid())
+  mapId     String
+  elementId String
+  static    Boolean
+  x         Int?
+  y         Int?
+  map       Map     @relation(fields: [mapId], references: [id])
+  element   Element @relation(fields: [elementId], references: [id])
+}
+
+model Avatar {
+  id       String  @id @unique @default(cuid())
+  imageUrl String?
+  name     String?
+  users    User[]
+}
+
+enum Role {
+  Admin
+  User
+}
