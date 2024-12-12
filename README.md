@@ -40,7 +40,7 @@ To set up the project locally:
 
 1. Clone the repository:
    ```bash
-   git clone [<repository-url>](https://github.com/Sameer2748/2D-Metaverse.git)
+   git clone https://github.com/Sameer2748/2D-Metaverse.git
    ```
 
 2. Install dependencies:
