@@ -6,6 +6,9 @@ This repository is a **2d metaverse ** project that manages a monorepo structure
 2. **http** - A backend server for handling HTTP requests.
 3. **ws** - A WebSocket server for real-time communication.
 
+2D-Metaverse/packages/db/prisma/schema.prisma in this you have to use your postgresql url.
+
+
 Each application is located in the `apps` folder and can be run independently or together during development.
 
 ---
