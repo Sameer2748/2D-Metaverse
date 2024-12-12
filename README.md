@@ -1,6 +1,6 @@
-# Turborepo Project
+# 2d metaverse Project
 
-This repository is a **Turborepo** project that manages a monorepo structure with the following apps:
+This repository is a **2d metaverse ** project that manages a monorepo structure with the following apps:
 
 1. **frontend** - A web application for the user interface.
 2. **http** - A backend server for handling HTTP requests.
