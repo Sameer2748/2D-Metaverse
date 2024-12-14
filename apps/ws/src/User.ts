@@ -23,7 +23,7 @@ interface ChatMessage {
 }
 
 class UserManager {
-  private users: Map<string, User> = new Map();
+  public users: Map<string, User> = new Map();
   private spaceUsers: Map<string, Set<string>> = new Map();
 
   addUser(user: User) {
@@ -183,7 +183,6 @@ function setupWebSocketServer(wss: WebSocketServer) {
               }
             });
             break;
-
           case 'movement':
                 const { x, y, direction } = message.payload;
                 const existingUser2 = userManager.findUserByWebSocket(ws);
@@ -284,7 +283,66 @@ function setupWebSocketServer(wss: WebSocketServer) {
               userManager.broadcastChatMessage(existingUser.spaceId, chatMessage);
             }
             break;
-        }
+            case "offer":
+              const { offer, from, to } = message.payload;
+              const existingUser3 = userManager.findUserByWebSocket(ws);
+              
+              if (existingUser3) {
+                // Find the recipient user in the same space
+                const recipientUser = Array.from(userManager.users.values()).find(
+                  user => user.userId === to && user.spaceId === existingUser3.spaceId
+                );                
+            
+                if (recipientUser) {
+                  recipientUser.ws.send(JSON.stringify({
+                    type: 'offer',
+                    payload: {
+                      offer,
+                      from,
+                      to
+                    }
+                  }));;
+                } else {
+                  console.warn(`User not found with id: ${to}`);
+                }
+              }
+              break;
+          case "answer":
+                console.log("Answer received");
+                const { answer, fromm, too } = message.payload;
+                const existingUser4 = userManager.findUserByWebSocket(ws);
+                
+                if (existingUser4) {
+                    const recipientUser = Array.from(userManager.users.values()).find(
+                        user => user.userId === fromm && user.spaceId === existingUser4.spaceId
+                    );
+                    
+                    if (recipientUser) {
+                        try {
+                            recipientUser.ws.send(JSON.stringify({
+                                type: 'answer',
+                                payload: {
+                                    answer,
+                                    fromm,
+                                    too
+                                }
+                            }));
+                        } catch (error) {
+                            console.error("Failed to send answer:", error);
+                        }
+                    } else {
+                        console.warn(`Recipient user not found: ${fromm}`);
+                    }
+                } else {
+                    console.warn("No existing user found for this WebSocket connection");
+                }
+                break;
+          case "icecandidate":
+            const { candidate} = message.payload;
+            // console.log(candidate);
+            
+          break;
+      }
       } catch (error) {
         console.error('WebSocket error:', error);
         ws.close();
@@ -308,6 +366,8 @@ function setupWebSocketServer(wss: WebSocketServer) {
     });
   });
 }
+
+
 
 // Update calculateSpawnPosition to work with the new space object structure
 function calculateSpawnPosition(spaceId: string, space: any): { x: number; y: number } {

@@ -26,7 +26,7 @@ interface UserPositionInfo {
   username?: string;
   userId: string;
   Avatar?: string;
-  name:string;
+  name: string;
 }
 
 // Avatar Sprite Configuration Interface
@@ -237,7 +237,10 @@ const Space = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [hoveredName, setHoveredName] = useState(false);
   const [spaceDetailss, setSpaceDetailss] = useState({});
-  const [showUsers , setShowUsers] = useState(true);
+  const [showUsers, setShowUsers] = useState(true);
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const remoteVideoRef = useRef(null);
 
   useEffect(() => {
     const fetch = async () => {
@@ -245,11 +248,95 @@ const Space = () => {
         "http://localhost:3000/api/v1/user/metadata",
         { headers: { authorization: localStorage.getItem("token") } }
       );
+      console.log(res.data.user);
+      
       setUser(res.data.user);
     };
     fetch();
   }, []);
 
+
+  /// create a peer connection instance and localstream
+  useEffect(() => {
+    const setupVideo = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+        if (localVideoRef.current && stream) {
+          localVideoRef.current.srcObject = stream;
+        }
+        setLocalStream(stream);
+      } catch (error) {
+        console.error("Error accessing media devices:", error);
+      }
+    };
+  
+    setupVideo();
+
+  
+    return () => {
+      if (localStream) {
+        localStream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
+
+
+  const PeerConnection = (() => {
+    let peerConnection: RTCPeerConnection | null = null;
+  
+    const createPeerConnection = () => {
+      const config = {
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      };
+      peerConnection = new RTCPeerConnection(config);
+  
+      if (localStream?.getTracks) {
+        localStream.getTracks().forEach((track: MediaStreamTrack) => {
+          peerConnection?.addTrack(track, localStream);
+        });
+      }
+  
+      // Listen to remote stream
+      peerConnection.ontrack = function (event: RTCTrackEvent) {
+        if (remoteVideoRef?.current) {
+          remoteVideoRef.current.srcObject = event.streams[0];
+        }
+      };
+  
+      // Listen for ICE candidates
+      peerConnection.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
+        if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(
+            JSON.stringify({
+              type: "icecandidate",
+              payload: {
+                candidate: event.candidate,
+              }
+            })
+          );
+        }
+      };
+  
+      return peerConnection;
+    };
+  
+    return {
+      getInstance: () => {
+        if (!peerConnection) {
+          peerConnection = createPeerConnection();
+        }
+        return peerConnection;
+      },
+      resetInstance: () => {
+        peerConnection = null;
+      }
+    };
+  })();
+
+ 
   // Scroll to bottom of chat when messages change
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -303,13 +390,13 @@ const Space = () => {
           })
         );
       };
-
       socket.onmessage = async (event: MessageEvent) => {
         const message = JSON.parse(event.data);
+
         switch (message.type) {
           case "space-joined":
             setUserPosition(message.payload.spawn);
-            
+
             setUsersPositions((prev) => {
               const newPositions: { [key: string]: any } = {};
               message.payload.newUserPositions.forEach((userPos: any) => {
@@ -319,26 +406,29 @@ const Space = () => {
                     y: userPos.position.y,
                     direction: AvatarDirection.Front,
                     username: userPos.username,
-                    name: userPos.name
+                    name: userPos.name,
                   };
                 }
               });
-              return newPositions; 
+              return newPositions;
             });
             break;
           case "movement":
             const newPosition = message.payload.position;
-            console.log(message.payload.direction);
+            console.log(message.payload);
 
             setUsersPositions((prev) => ({
               ...prev,
               [message.payload.userId]: {
+                // get the useid value in prev postions
                 ...newPosition,
                 direction: message.payload.direction, // This is already being set
                 username: message.payload.username,
-                name: message.payload.name
+                name: message.payload.name,
               },
             }));
+            // Check after set the new values then if there are any users facing each other and log them
+            // Efficient facing check;
 
             break;
           case "chat":
@@ -350,11 +440,82 @@ const Space = () => {
             delete newPositions[message.payload.userId];
             setUsersPositions(newPositions);
             break;
+            case "offer":
+              const { offer, from, to } = message.payload;
+              console.log("Received WebRTC offer from user:", from, to);
+
+            
+              try {
+                // Validate offer payload
+                if (!offer || !from || !to) {
+                  console.error("Invalid offer payload:", message.payload);
+                  return;
+                }
+            
+                const pc = PeerConnection.getInstance();
+                console.log(to, user);
+                const userId = await user.id;
+
+                if (to == userId) {
+                  console.log("Offer is for current user, processing...");
+            
+                  try {
+                    // Ensure offer is a valid RTCSessionDescriptionInit
+                    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+                    
+                    console.log("Remote description set successfully");
+            
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+            
+                    console.log("Answer created and local description set");
+            
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                      console.log("WebSocket is open, sending answer");
+                      ws.send(
+                        JSON.stringify({
+                          type: "answer",
+                          payload: {
+                            fromm: from,
+                            too: to,
+                            answer: pc.localDescription,
+                          },
+                        })
+                      );
+                      console.log("Answer sent successfully to signaling server");
+                    } else {
+                      console.error("WebSocket is not open. Cannot send answer.");
+                    }
+                  } catch (processingError) {
+                    console.error("Error processing WebRTC offer:", processingError);
+                  }
+                } else {
+                  console.log("Offer is not for current user, skipping");
+                }
+              } catch (error) {
+                console.error("Unexpected error in offer handling:", error);
+              }
+              break;
+          case "answer":
+            const { answer, fromm, too } = message.payload;
+            console.log("got answer from other user");
+            const pcc = PeerConnection.getInstance();
+            if (fromm === user.id) {
+              await pcc.setRemoteDescription(answer);
+            }
+            break;
+          case "ice-candidate":
+              const pccc = PeerConnection.getInstance();
+              pccc.addIceCandidate(
+                new RTCIceCandidate(message.payload.candidate)
+              );
+            break;
           default:
             break;
         }
       };
 
+   
       socket.onerror = (error) => {
         console.error("WebSocket error:", error);
         setTimeout(reconnectWebSocket, 1000);
@@ -390,64 +551,6 @@ const Space = () => {
     }
   };
 
-  const checkAndLogFacingUsers = (
-    currentUser: UserPositionInfo,
-    usersPositions: Record<string, UserPositionInfo>
-  ): void => {
-    // Determine the position the current user is facing
-    let targetX = currentUser.x;
-    let targetY = currentUser.y;
-  
-    switch (currentUser.direction) {
-      case AvatarDirection.Right:
-        targetX += 1;
-        break;
-      case AvatarDirection.Left:
-        targetX -= 1;
-        break;
-      case AvatarDirection.Front:
-        targetY += 1;
-        break;
-      case AvatarDirection.Back:
-        targetY -= 1;
-        break;
-    }
-  
-    // Check if a user exists at the target position
-    const targetUser = Object.values(usersPositions).find(
-      (user) => user.x === targetX && user.y === targetY
-    );
-  
-    if (targetUser) {
-      // Check if the users are facing each other
-      const isFacingEachOther =
-        (currentUser.direction === AvatarDirection.Right &&
-          targetUser.direction === AvatarDirection.Left) ||
-        (currentUser.direction === AvatarDirection.Left &&
-          targetUser.direction === AvatarDirection.Right) ||
-        (currentUser.direction === AvatarDirection.Front &&
-          targetUser.direction === AvatarDirection.Back) ||
-        (currentUser.direction === AvatarDirection.Back &&
-          targetUser.direction === AvatarDirection.Front);
-  
-      if (isFacingEachOther) {
-        console.log("Users facing each other:");
-        console.log("User 1:", {
-          id: currentUser.userId,
-          username: currentUser.username,
-          position: { x: currentUser.x, y: currentUser.y },
-          direction: currentUser.direction
-        });
-        console.log("User 2:", {
-          id: targetUser.userId,
-          username: targetUser.username,
-          position: { x: targetUser.x, y: targetUser.y },
-          direction: targetUser.direction
-        });
-      }
-    }
-  };
-
   const determineDirection = (
     prevPosition: { x: number; y: number },
     newPosition: { x: number; y: number }
@@ -462,9 +565,101 @@ const Space = () => {
 
     return AvatarDirection.Front; // Default
   };
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [userPosition, ws, usersPositions, spaceDetails]);
+
+  //---------------video---------------//
+  // video functionality
+
+  const StartCall = async (from: string, to: string) => {
+    console.log("inside call");
   
+    try {
+      // Ensure WebSocket is open before initiating call
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.error("WebSocket is not open. Cannot start call.");
+        return;
+      }
+  
+      const pc = PeerConnection.getInstance();
+      if (!pc) {
+        console.error("Failed to create peer connection");
+        return;
+      }
+  
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+  
+      ws.send(
+        JSON.stringify({
+          type: "offer",
+          payload: {
+            from,
+            to,
+            offer: pc.localDescription,
+          },
+        })
+      );
+    } catch (error) {
+      console.error("Error in StartCall:", error);
+    }
+  };
+  const checkFacingUsers = (
+    currentUser: UserPositionInfo,
+    otherUsers: { [key: string]: UserPositionInfo }
+  ): { userId: string; name: string }[] => {
+    const facingUsers: { userId: string; name: string }[] = [];
+
+    for (const [userId, otherUser] of Object.entries(otherUsers)) {
+      // Determine the opposite direction for each facing scenario
+      const oppositeFacingMap = {
+        [AvatarDirection.Right]: AvatarDirection.Left,
+        [AvatarDirection.Left]: AvatarDirection.Right,
+        [AvatarDirection.Front]: AvatarDirection.Back,
+        [AvatarDirection.Back]: AvatarDirection.Front,
+      };
+
+      // Check if users are truly adjacent (next to each other)
+      const isAdjacent =
+        (Math.abs(currentUser.x - otherUser.x) === 1 &&
+          currentUser.y === otherUser.y) ||
+        (Math.abs(currentUser.y - otherUser.y) === 1 &&
+          currentUser.x === otherUser.x);
+
+      // Check if users are facing each other using the opposite direction map
+      const isFacing =
+        currentUser.direction === oppositeFacingMap[otherUser.direction] &&
+        // Horizontal facing
+        ((currentUser.direction === AvatarDirection.Right &&
+          currentUser.x + 1 === otherUser.x &&
+          currentUser.y === otherUser.y) ||
+          (currentUser.direction === AvatarDirection.Left &&
+            currentUser.x - 1 === otherUser.x &&
+            currentUser.y === otherUser.y) ||
+          // Vertical facing
+          (currentUser.direction === AvatarDirection.Front &&
+            currentUser.y + 1 === otherUser.y &&
+            currentUser.x === otherUser.x) ||
+          (currentUser.direction === AvatarDirection.Back &&
+            currentUser.y - 1 === otherUser.y &&
+            currentUser.x === otherUser.x));
+
+      if (isAdjacent && isFacing) {
+        facingUsers.push({ userId, name: otherUser.name || "Unknown" });
+      }
+    }
+
+    return facingUsers;
+  };
   // Handle Key Down for Movement
   const handleKeyDown = (event: KeyboardEvent) => {
+    //checking the key
     if (
       ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)
     ) {
@@ -479,7 +674,7 @@ const Space = () => {
     // storing userdirection for changing direction of current user facing
     let newDirection = userDirection;
 
-    // checking the key and fic the newposition of user and direction
+    // checking the key and fix the newposition of user and direction
     switch (event.key) {
       case "ArrowUp":
         newPosition.y = Math.max(0, userPosition.y - 1);
@@ -507,15 +702,15 @@ const Space = () => {
         return;
     }
 
-
-    // cheking thedirection of use based on prevposition and newposition
+    // cheking the direction of use based on prevposition and newposition
     newDirection = determineDirection(prevPosition, newPosition);
 
-    // cheking i there is any other user present or not 
+    // checking if there is any other element present or not
     const elementAtNewPosition = spaceDetails.elements.find(
       (el) => el.x === newPosition.x && el.y === newPosition.y
     );
 
+    // check if the new position is occupied or a static element, if true, return without moving the user
     if (
       (elementAtNewPosition && elementAtNewPosition.element.static) ||
       Object.values(usersPositions).some(
@@ -525,12 +720,7 @@ const Space = () => {
       return;
     }
 
-    // Check if there are any users facing each other and log them
-    checkAndLogFacingUsers(
-      { ...userPosition, direction: newDirection, userId: user?.id || '' }, 
-      usersPositions
-    );
-
+    //finally set user position and direction
     setUserPosition(newPosition);
     setUserDirection(newDirection);
 
@@ -547,17 +737,19 @@ const Space = () => {
         })
       );
     }
-   
+
+    // Check after set the new values and send them  then if there are any users facing each other and log them
+    const facingUsers = checkFacingUsers(
+      { ...newPosition, direction: newDirection, userId: user.id },
+      usersPositions
+    );
+
+    if (facingUsers.length > 0) {
+      console.log("Users facing each other:", facingUsers);
+      // You can add additional logic here, like showing an interaction prompt
+      StartCall(user.id, facingUsers[0].userId);
+    }
   };
-
-  // Listen for keydown event
-  useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [userPosition, ws, usersPositions, spaceDetails]);
 
   // Render loading state if space details not loaded
   if (!spaceDetails) {
@@ -570,29 +762,45 @@ const Space = () => {
   return (
     <div className="flex flex-col justify-between items-center h-screen bg-[#545c8f] p-6">
       <div className="flex justify-between   w-full">
-      <div>
-        {hoveredName && (
-          <div
-            className="absolute  mt-8 w-auto p-3 h-auto bg-white rounded-xl text-black"
-            style={{ zIndex: 99 }}
+        <div>
+          {hoveredName && (
+            <div
+              className="absolute  mt-8 w-auto p-3 h-auto bg-white rounded-xl text-black"
+              style={{ zIndex: 99 }}
+            >
+              Space name: {spaceDetails.name}
+              <h1>CreatedBy: {spaceDetailss.name} </h1>
+            </div>
+          )}
+          <h1
+            className="text-xl font-semibold cursor-pointer relative"
+            onMouseOver={() => setHoveredName(true)}
+            onMouseLeave={() => setHoveredName(false)}
           >
-            Space name: {spaceDetails.name}
-            <h1>CreatedBy: {spaceDetailss.name} </h1>
+            {spaceDetails.name}
+          </h1>
+        </div>
+        <div className="flex justfy-between items-center gap-4">
+          <div className="rounded-xl w-[250px]  h-[140px] bg-gray-300">
+            <video
+              className="rounded-xl"
+              ref={localVideoRef}
+              autoPlay
+              muted
+              style={{ width: "100%", height: "100%" }}
+            />
           </div>
-        )}
-        <h1
-          className="text-xl font-semibold cursor-pointer relative"
-          onMouseOver={() => setHoveredName(true)}
-          onMouseLeave={() => setHoveredName(false)}
-        >
-          {spaceDetails.name}
-        </h1>
-      </div>
-      <div className="flex justfy-between items-center gap-4">
-        <div className="rounded-xl w-[250px] h-[140px] bg-gray-300"></div>
-        <div className="rounded-xl w-[250px] h-[140px] bg-gray-300"></div>
-      </div>
-      {/* <div>
+          <div className="rounded-xl w-[250px] h-[140px] bg-gray-300">
+            <video
+              className="rounded-xl"
+              ref={remoteVideoRef}
+              autoPlay
+              muted
+              style={{ width: "100%", height: "100%" }}
+            />
+          </div>
+        </div>
+        {/* <div>
         {
           showUsers && (
             <div className="absolute mt-12 right-7 w-auto h-auto bg-red-500 flex flex-col justify-center items-center z-[99] rounded-xl">
