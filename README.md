@@ -1,81 +1,123 @@
-# Turborepo starter
+# 2d metaverse Project
 
-This is an official starter Turborepo.
+This repository is a **2d metaverse ** project that manages a monorepo structure with the following apps:
 
-## Using this example
+1. **frontend** - A web application for the user interface. 
+2. **http** - A backend server for handling HTTP requests
+3. **ws** - A WebSocket server for real-time communication. 
 
-Run the following command:
+In this file you have to use your postgresql url - 2D-Metaverse/packages/db/prisma/schema.prisma .
 
-```sh
-npx create-turbo@latest
-```
 
-## What's inside?
+Each application is located in the `apps` folder and can be run independently or together during development.
 
-This Turborepo includes the following packages/apps:
+---
 
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
+## Folder Structure
 
 ```
-cd my-turborepo
-pnpm build
+.
+├── apps
+│   ├── frontend      # React (or other) web frontend
+│   ├── http          # HTTP server (e.g., Express or Fastify)
+│   └── ws            # WebSocket server
+├── package.json      # Turborepo configuration
+├── turbo.json        # Turborepo tasks and pipeline settings
+└── README.md         # Project documentation
 ```
 
-### Develop
+---
 
-To develop all apps and packages, run the following command:
+## Prerequisites
 
+Ensure you have the following installed:
+
+- **Node.js** (v16 or later)
+- **npm** (or your preferred package manager like Yarn)
+
+---
+
+## Installation
+
+To set up the project locally:
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/Sameer2748/2D-Metaverse.git
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+---
+
+## Development
+
+Each app can be run individually or concurrently. Turborepo optimizes the workflow for working with multiple apps.
+
+### Running Individual Apps
+
+- **Frontend**:
+  ```bash
+  npm run dev --filter=frontend
+  ```
+
+- **HTTP Server**:
+  ```bash
+  npm run dev --filter=http
+  ```
+
+- **WebSocket Server**:
+  ```bash
+  npm run dev --filter=ws
+  ```
+
+### Running All Apps Together
+
+To run all apps simultaneously:
+
+```bash
+npm run dev
 ```
-cd my-turborepo
-pnpm dev
-```
 
-### Remote Caching
+This command uses Turborepo to execute the `dev` script in all apps concurrently.
 
-Turborepo can use a technique known as [Remote Caching](https://turbo.build/repo/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
+---
 
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup), then enter the following commands:
+## Scripts
 
-```
-cd my-turborepo
-npx turbo login
-```
+Each app includes the following common scripts:
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+- **dev**: Starts the app in development mode.
+- **build**: Builds the app for production (if applicable).
+- **start**: Starts the app in production mode (if applicable).
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
+---
 
-```
-npx turbo link
-```
+## Adding a New App
 
-## Useful Links
+1. Create a new folder in the `apps` directory.
+2. Add a `package.json` and configure it for the new app.
+3. Update the `turbo.json` file to include the new app in the pipeline.
 
-Learn more about the power of Turborepo:
+---
 
-- [Tasks](https://turbo.build/repo/docs/core-concepts/monorepos/running-tasks)
-- [Caching](https://turbo.build/repo/docs/core-concepts/caching)
-- [Remote Caching](https://turbo.build/repo/docs/core-concepts/remote-caching)
-- [Filtering](https://turbo.build/repo/docs/core-concepts/monorepos/filtering)
-- [Configuration Options](https://turbo.build/repo/docs/reference/configuration)
-- [CLI Usage](https://turbo.build/repo/docs/reference/command-line-reference)
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
+
+---
+
+## Contributing
+
+Contributions are welcome! Please submit a pull request or create an issue for any feature requests or bug fixes.
+
+---
+
+## Notes
+
+- Ensure all dependencies are installed at the root level to benefit from Turborepo's caching and optimization.
+- For troubleshooting or questions, refer to the [Turborepo documentation](https://turbo.build/).
+
