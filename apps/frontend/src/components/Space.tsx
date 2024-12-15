@@ -190,6 +190,26 @@ const AnimatedAvatar2: React.FC<{
     />
   );
 };
+class PeerConnectionManager {
+  private candidateQueue: RTCIceCandidate[] = [];
+  private pcInstance: RTCPeerConnection | null = null;
+
+  addIceCandidate(candidate: RTCIceCandidate) {
+    if (this.pcInstance && this.pcInstance.remoteDescription) {
+      this.pcInstance.addIceCandidate(candidate);
+
+      // Process queued candidates
+      while (this.candidateQueue.length > 0) {
+        const queuedCandidate = this.candidateQueue.shift();
+        if (queuedCandidate) {
+          this.pcInstance.addIceCandidate(queuedCandidate);
+        }
+      }
+    } else {
+      this.candidateQueue.push(candidate);
+    }
+  }
+}
 
 // Main Space Component
 const Space = () => {
@@ -241,7 +261,17 @@ const Space = () => {
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const remoteVideoRef = useRef(null);
+  const [CurrUserId, setCurrUserId] = useState("");
 
+  const [wsState, setWsState] = useState<{
+    status: "connecting" | "connected" | "disconnected";
+    retryCount: number;
+  }>({
+    status: "connecting",
+    retryCount: 0,
+  });
+
+  //user metadata space details
   useEffect(() => {
     const fetch = async () => {
       const res = await axios.get(
@@ -249,102 +279,10 @@ const Space = () => {
         { headers: { authorization: localStorage.getItem("token") } }
       );
       console.log(res.data.user);
-      
+      setCurrUserId(res.data.user.id);
+
       setUser(res.data.user);
     };
-    fetch();
-  }, []);
-
-
-  /// create a peer connection instance and localstream
-  useEffect(() => {
-    const setupVideo = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
-        if (localVideoRef.current && stream) {
-          localVideoRef.current.srcObject = stream;
-        }
-        setLocalStream(stream);
-      } catch (error) {
-        console.error("Error accessing media devices:", error);
-      }
-    };
-  
-    setupVideo();
-
-  
-    return () => {
-      if (localStream) {
-        localStream.getTracks().forEach((track) => track.stop());
-      }
-    };
-  }, []);
-
-
-  const PeerConnection = (() => {
-    let peerConnection: RTCPeerConnection | null = null;
-  
-    const createPeerConnection = () => {
-      const config = {
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-      };
-      peerConnection = new RTCPeerConnection(config);
-  
-      if (localStream?.getTracks) {
-        localStream.getTracks().forEach((track: MediaStreamTrack) => {
-          peerConnection?.addTrack(track, localStream);
-        });
-      }
-  
-      // Listen to remote stream
-      peerConnection.ontrack = function (event: RTCTrackEvent) {
-        if (remoteVideoRef?.current) {
-          remoteVideoRef.current.srcObject = event.streams[0];
-        }
-      };
-  
-      // Listen for ICE candidates
-      peerConnection.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
-        if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(
-            JSON.stringify({
-              type: "icecandidate",
-              payload: {
-                candidate: event.candidate,
-              }
-            })
-          );
-        }
-      };
-  
-      return peerConnection;
-    };
-  
-    return {
-      getInstance: () => {
-        if (!peerConnection) {
-          peerConnection = createPeerConnection();
-        }
-        return peerConnection;
-      },
-      resetInstance: () => {
-        peerConnection = null;
-      }
-    };
-  })();
-
- 
-  // Scroll to bottom of chat when messages change
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
-
-  // WebSocket and Space Details Fetch
-  useEffect(() => {
-    let socket: WebSocket | null = null;
 
     const fetchSpaceDetails = async () => {
       try {
@@ -373,28 +311,131 @@ const Space = () => {
     };
 
     fetchSpaceDetails();
+    fetch();
+  }, []);
 
-    const reconnectWebSocket = () => {
-      socket = new WebSocket(`ws://localhost:3001`);
-      setWs(socket);
+  /// create a localstream
+  useEffect(() => {
+    const setupVideo = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
 
-      socket.onopen = () => {
-        console.log("WebSocket connection established");
-        socket.send(
-          JSON.stringify({
-            type: "join",
-            payload: {
-              spaceId: spaceId,
-              token: wstoken,
-            },
-          })
-        );
+        setLocalStream(stream);
+      } catch (error) {
+        console.error("Error accessing media devices:", error);
+      }
+    };
+
+    setupVideo();
+
+    return () => {
+      if (localStream) {
+        localStream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
+
+  const PeerConnection = (() => {
+    let peerConnection: RTCPeerConnection | null = null;
+    let remoteUserId: string | null = null;  
+
+    const createPeerConnection = () => {
+      const config = {
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
       };
-      socket.onmessage = async (event: MessageEvent) => {
-        const message = JSON.parse(event.data);
+      peerConnection = new RTCPeerConnection(config);
 
-        switch (message.type) {
-          case "space-joined":
+      if (localStream?.getTracks) {
+        localStream.getTracks().forEach((track: MediaStreamTrack) => {
+          peerConnection?.addTrack(track, localStream);
+        });
+      }
+
+      peerConnection.ontrack = function (event: RTCTrackEvent) {
+        if (remoteVideoRef?.current) {
+          remoteVideoRef.current.srcObject = event.streams[0];
+        }
+      };
+
+      peerConnection.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
+        if (event.candidate && ws && ws.readyState === WebSocket.OPEN && remoteUserId) {
+          ws.send(
+            JSON.stringify({
+              type: "icecandidate",
+              payload: {
+                candidate: event.candidate,
+                to: remoteUserId  // Use the stored remote user ID
+              },
+            })
+          );
+        }
+      };
+
+      return peerConnection;
+    };
+
+    return {
+      getInstance: () => {
+        if (!peerConnection) {
+          peerConnection = createPeerConnection();
+        }
+        return peerConnection;
+      },
+      resetInstance: () => {
+        peerConnection = null;
+      },
+      setRemoteUserId: (userId: string) => {
+        remoteUserId = userId;
+      }
+    };
+  })();
+
+  const connectWebSocket = () => {
+    // Close existing socket if open
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.close();
+    }
+
+    const newWs = new WebSocket(`ws://localhost:3001`);
+    setWs(newWs);
+
+    newWs.onopen = () => {
+      setWsState({ status: "connected", retryCount: 0 });
+      console.log("WebSocket connection established");
+      
+      // Immediately join the space after connection
+      newWs.send(
+        JSON.stringify({
+          type: "join",
+          payload: {
+            spaceId: spaceId,
+            token: wstoken,
+          },
+        })
+      );
+    };
+
+    newWs.onclose = () => {
+      setWsState((prev) => ({
+        status: "disconnected",
+        retryCount: prev.retryCount + 1,
+      }));
+
+      // Exponential backoff for reconnection
+      const timeout = Math.min(30000, Math.pow(2, wsState.retryCount) * 1000);
+      setTimeout(connectWebSocket, timeout);
+    };
+
+    newWs.onmessage = async (event: MessageEvent) => {
+      const message = JSON.parse(event.data);
+
+      switch (message.type) {
+       
+        // ... other message type handlers
+        case "space-joined":
             setUserPosition(message.payload.spawn);
 
             setUsersPositions((prev) => {
@@ -415,7 +456,6 @@ const Space = () => {
             break;
           case "movement":
             const newPosition = message.payload.position;
-            console.log(message.payload);
 
             setUsersPositions((prev) => ({
               ...prev,
@@ -440,97 +480,494 @@ const Space = () => {
             delete newPositions[message.payload.userId];
             setUsersPositions(newPositions);
             break;
+            // case "offer":
+            //   const { offer, from, to } = message.payload;
+            //   console.log("Received WebRTC offer from user:", from, to);
+            
+            //   try {
+            //     if (!offer || !from || !to) {
+            //       console.error("Invalid offer payload:", message.payload);
+            //       return;
+            //     }
+            //     console.log("Received offer:", offer);
+            
+            //     const pc = PeerConnection.getInstance();
+            //     console.log("PeerConnection instance:", pc); // Check if it returns a valid object
+            
+            //     // Handle the WebRTC offer processing
+            //     console.log("sending answer");
+            
+            //     try {
+            //       try {
+            //         await pc.setRemoteDescription(new RTCSessionDescription(offer));
+            //         console.log("Remote description after set:", pc.remoteDescription);
+            //       } catch (error) {
+            //         console.error("Failed to set remote description:", error);
+            //       }
+            
+            //       const answer = await pc.createAnswer();
+            //       console.log("Answer created:", answer);
+            
+            //       try {
+            //         await pc.setLocalDescription(answer);
+            //         console.log("Local description set successfully.");
+            //       } catch (error) {
+            //         console.error("Failed to set local description:", error);
+            //       }
+            
+            //       // Retry sending answer with multiple attempts
+            //       console.log("ws state in final sending ", ws);
+            
+            //       const createWebSocketConnection = () => {
+            //         // If WebSocket is open, do nothing
+            //         if (ws && ws.readyState === WebSocket.OPEN) return;
+            
+            //         console.log("WebSocket not open, creating a new connection...");
+            //         const newWs = new WebSocket("ws://localhost:3001"); // Replace with your URL
+            
+            //         // Handle WebSocket events
+            //         newWs.onopen = () => {
+            //           console.log("WebSocket connected");
+            //           // Send the answer once WebSocket is connected
+            //           sendAnswer(newWs);
+            //         };
+            
+            //         newWs.onerror = (error) => {
+            //           console.error("WebSocket error:", error);
+            //         };
+            
+            //         newWs.onclose = () => {
+            //           console.log("WebSocket connection closed.");
+            //         };
+            
+            //         setWs(newWs); // Store the WebSocket in state
+            //       };
+            
+            //       const sendAnswer = (newWs) => {
+            //         // Ensure WebSocket is open before sending
+            //         if (!newWs || newWs.readyState !== WebSocket.OPEN) {
+            //           console.log("WebSocket not open yet, retrying...");
+            //           return;
+            //         }
+            
+            //         // Send the WebRTC answer over the WebSocket
+            //         newWs.send(
+            //           JSON.stringify({
+            //             type: "answer",
+            //             payload: {
+            //               fromm: from,
+            //               too: to,
+            //               answer: pc.localDescription,
+            //               tempspaceid: spaceId,
+            //               userr: user
+            //             },
+            //           })
+            //         );
+            //         console.log("Answer sent successfully");
+            //       };
+            
+            //       // Create WebSocket connection and send answer
+            //       createWebSocketConnection();
+            //       console.log("Sending answer payload:", {
+            //         fromm: from,
+            //         too: to,
+            //         answer: pc.localDescription,
+            //       });
+            
+            //     } catch (processingError) {
+            //       console.error("Error processing WebRTC offer:", processingError);
+            //     }
+            //   } catch (error) {
+            //     console.error("Unexpected error in offer handling:", error);
+            //   }
+            //   break;
+            //   case "answer":
             case "offer":
               const { offer, from, to } = message.payload;
-              console.log("Received WebRTC offer from user:", from, to);
-
-            
-              try {
-                // Validate offer payload
-                if (!offer || !from || !to) {
-                  console.error("Invalid offer payload:", message.payload);
-                  return;
-                }
-            
-                const pc = PeerConnection.getInstance();
-                console.log(to, user);
-                const userId = await user.id;
-
-                if (to == userId) {
-                  console.log("Offer is for current user, processing...");
-            
-                  try {
-                    // Ensure offer is a valid RTCSessionDescriptionInit
-                    await pc.setRemoteDescription(new RTCSessionDescription(offer));
-                    
-                    console.log("Remote description set successfully");
-            
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
-            
-                    console.log("Answer created and local description set");
-            
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                      console.log("WebSocket is open, sending answer");
-                      ws.send(
-                        JSON.stringify({
-                          type: "answer",
-                          payload: {
-                            fromm: from,
-                            too: to,
-                            answer: pc.localDescription,
-                          },
-                        })
-                      );
-                      console.log("Answer sent successfully to signaling server");
-                    } else {
-                      console.error("WebSocket is not open. Cannot send answer.");
-                    }
-                  } catch (processingError) {
-                    console.error("Error processing WebRTC offer:", processingError);
-                  }
-                } else {
-                  console.log("Offer is not for current user, skipping");
-                }
-              } catch (error) {
-                console.error("Unexpected error in offer handling:", error);
-              }
+              await handleWebRTCOffer(offer, from, to);
               break;
-          case "answer":
+            case "answer":
             const { answer, fromm, too } = message.payload;
-            console.log("got answer from other user");
-            const pcc = PeerConnection.getInstance();
-            if (fromm === user.id) {
-              await pcc.setRemoteDescription(answer);
+                console.log("got answer from other user");
+            
+                // Get the PeerConnection instance
+                const pcc = PeerConnection.getInstance();
+                console.log("PeerConnection instance:", pcc); // Check if it returns a valid object
+                console.log(CurrUserId, too);
+            
+                // Ensure the answer is intended for the current user
+                if (fromm === CurrUserId) {
+                    try {
+                        // Check signaling state before setting remote description
+                        if (pcc.signalingState === "have-local-offer") {
+                            await pcc.setRemoteDescription(new RTCSessionDescription(answer));
+                            console.log("Answer set successfully, remote description:", pcc.remoteDescription);
+                        } else {
+                            console.warn(`Invalid signaling state: ${pcc.signalingState}. Expected 'have-local-offer'.`);
+                        }
+                    } catch (error) {
+                        console.error("Failed to set remote description:", error);
+                    }
+                } else {
+                    console.warn("Answer not intended for this user.");
+                }
+                break; 
+          case "ice-candidate":
+            const pccc = PeerConnection.getInstance();
+            pccc.remoteDescription
+            try {
+              // Only add ICE candidate if remote description is set
+              if (pccc.remoteDescription) {
+                await pccc.addIceCandidate(
+                  new RTCIceCandidate(message.payload.candidate)
+                );
+              } else {
+                console.warn(
+                  "Remote description not set. Queuing ICE candidate."
+                );
+                // You might want to implement a queue for ICE candidates
+              }
+            } catch (error) {
+              console.error("Error adding ICE candidate:", error);
             }
             break;
-          case "ice-candidate":
-              const pccc = PeerConnection.getInstance();
-              pccc.addIceCandidate(
-                new RTCIceCandidate(message.payload.candidate)
-              );
-            break;
-          default:
-            break;
-        }
-      };
-
-   
-      socket.onerror = (error) => {
-        console.error("WebSocket error:", error);
-        setTimeout(reconnectWebSocket, 1000);
-      };
-    };
-
-    reconnectWebSocket();
-
-    return () => {
-      if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.close();
+          
       }
     };
-  }, [spaceId, token]);
 
+    newWs.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      newWs.close();
+    };
+  };
+
+  const handleWebRTCOffer = async (offer: RTCSessionDescriptionInit, from: string, to: string) => {
+    try {
+      // Ensure WebSocket is open, reconnect if needed
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.log("WebSocket not open, reconnecting...");
+        connectWebSocket();
+        return;
+      }
+
+      if(to === CurrUserId){
+
+        const pc = PeerConnection.getInstance();
+        
+        // Set remote description
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+
+        // Create answer
+        const answer = await pc.createAnswer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true
+      });
+
+      await pc.setLocalDescription(answer);
+      
+      // Send answer through WebSocket
+      ws.send(
+        JSON.stringify({
+          type: "answer",
+          payload: {
+            answer: pc.localDescription,
+            fromm: to,  // Swap from and to
+            too: from,
+            tempspaceid: spaceId,
+            userr: user,
+            userPosition: userPosition
+          },
+        })
+      );
+    }else{
+      console.log("doesn't match this is not for me ", to, CurrUserId);
+      
+    }
+    } catch (error) {
+      console.error("Error handling WebRTC offer:", error);
+    }
+  };
+
+  useEffect(() => {
+    // Initial WebSocket connection
+    connectWebSocket();
+
+    // Cleanup on component unmount
+    return () => {
+      if (ws) ws.close();
+    };
+  }, [spaceId, wstoken]);
+
+  // Scroll to bottom of chat when messages change
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
+  // WebSocket and Space Details Fetch
+  // useEffect(() => {
+  //   let socket: WebSocket | null = null;
+  //   let reconnectTimeout: NodeJS.Timeout | null = null;
+
+  //   const reconnectWebSocket = () => {
+  //     // Clear any existing timeout
+  //     if (reconnectTimeout) {
+  //       clearTimeout(reconnectTimeout);
+  //     }
+
+  //     // Close existing socket if open
+  //     if (socket && socket.readyState === WebSocket.OPEN) {
+  //       socket.close();
+  //     }
+
+  //     socket = new WebSocket(`ws://localhost:3001`);
+  //     setWs(socket);
+
+  //     socket.onopen = () => {
+  //       setWsState({ status: "connected", retryCount: 0 });
+  //       console.log("WebSocket connection established");
+  //       socket?.send(
+  //         JSON.stringify({
+  //           type: "join",
+  //           payload: {
+  //             spaceId: spaceId,
+  //             token: wstoken,
+  //           },
+  //         })
+  //       );
+  //     };
+
+  //     socket.onclose = () => {
+  //       setWsState((prev) => ({
+  //         status: "disconnected",
+  //         retryCount: prev.retryCount + 1,
+  //       }));
+
+  //       // Exponential backoff for reconnection
+  //       const timeout = Math.min(30000, Math.pow(2, wsState.retryCount) * 1000);
+  //       reconnectTimeout = setTimeout(reconnectWebSocket, timeout);
+  //     };
+
+  //     socket.onmessage = async (event: MessageEvent) => {
+  //       const message = JSON.parse(event.data);
+
+  //       switch (message.type) {
+  //         case "space-joined":
+  //           setUserPosition(message.payload.spawn);
+
+  //           setUsersPositions((prev) => {
+  //             const newPositions: { [key: string]: any } = {};
+  //             message.payload.newUserPositions.forEach((userPos: any) => {
+  //               if (userPos.userId !== user?.id) {
+  //                 newPositions[userPos.userId] = {
+  //                   x: userPos.position.x,
+  //                   y: userPos.position.y,
+  //                   direction: AvatarDirection.Front,
+  //                   username: userPos.username,
+  //                   name: userPos.name,
+  //                 };
+  //               }
+  //             });
+  //             return newPositions;
+  //           });
+  //           break;
+  //         case "movement":
+  //           const newPosition = message.payload.position;
+
+  //           setUsersPositions((prev) => ({
+  //             ...prev,
+  //             [message.payload.userId]: {
+  //               // get the useid value in prev postions
+  //               ...newPosition,
+  //               direction: message.payload.direction, // This is already being set
+  //               username: message.payload.username,
+  //               name: message.payload.name,
+  //             },
+  //           }));
+  //           // Check after set the new values then if there are any users facing each other and log them
+  //           // Efficient facing check;
+
+  //           break;
+  //         case "chat":
+  //           setChatMessages((prev) => [...prev, message.payload]);
+  //           console.log(message);
+  //           break;
+  //         case "user-left":
+  //           const newPositions = { ...usersPositions };
+  //           delete newPositions[message.payload.userId];
+  //           setUsersPositions(newPositions);
+  //           break;
+  //           case "offer":
+  //             const { offer, from, to } = message.payload;
+  //             console.log("Received WebRTC offer from user:", from, to);
+            
+  //             try {
+  //               if (!offer || !from || !to) {
+  //                 console.error("Invalid offer payload:", message.payload);
+  //                 return;
+  //               }
+  //               console.log("Received offer:", offer);
+            
+  //               const pc = PeerConnection.getInstance();
+  //               console.log("PeerConnection instance:", pc); // Check if it returns a valid object
+            
+  //               // Handle the WebRTC offer processing
+  //               console.log("sending answer");
+            
+  //               try {
+  //                 try {
+  //                   await pc.setRemoteDescription(new RTCSessionDescription(offer));
+  //                   console.log("Remote description after set:", pc.remoteDescription);
+  //                 } catch (error) {
+  //                   console.error("Failed to set remote description:", error);
+  //                 }
+            
+  //                 const answer = await pc.createAnswer();
+  //                 console.log("Answer created:", answer);
+            
+  //                 try {
+  //                   await pc.setLocalDescription(answer);
+  //                   console.log("Local description set successfully.");
+  //                 } catch (error) {
+  //                   console.error("Failed to set local description:", error);
+  //                 }
+            
+  //                 // Retry sending answer with multiple attempts
+  //                 console.log("ws state in final sending ", ws);
+            
+  //                 const createWebSocketConnection = () => {
+  //                   // If WebSocket is open, do nothing
+  //                   if (ws && ws.readyState === WebSocket.OPEN) return;
+            
+  //                   console.log("WebSocket not open, creating a new connection...");
+  //                   const newWs = new WebSocket("ws://localhost:3001"); // Replace with your URL
+            
+  //                   // Handle WebSocket events
+  //                   newWs.onopen = () => {
+  //                     console.log("WebSocket connected");
+  //                     // Send the answer once WebSocket is connected
+  //                     sendAnswer(newWs);
+  //                   };
+            
+  //                   newWs.onerror = (error) => {
+  //                     console.error("WebSocket error:", error);
+  //                   };
+            
+  //                   newWs.onclose = () => {
+  //                     console.log("WebSocket connection closed.");
+  //                   };
+            
+  //                   setWs(newWs); // Store the WebSocket in state
+  //                 };
+            
+  //                 const sendAnswer = (newWs) => {
+  //                   // Ensure WebSocket is open before sending
+  //                   if (!newWs || newWs.readyState !== WebSocket.OPEN) {
+  //                     console.log("WebSocket not open yet, retrying...");
+  //                     return;
+  //                   }
+            
+  //                   // Send the WebRTC answer over the WebSocket
+  //                   newWs.send(
+  //                     JSON.stringify({
+  //                       type: "answer",
+  //                       payload: {
+  //                         fromm: from,
+  //                         too: to,
+  //                         answer: pc.localDescription,
+  //                         tempspaceid: spaceId,
+  //                         userr: user
+  //                       },
+  //                     })
+  //                   );
+  //                   console.log("Answer sent successfully");
+  //                 };
+            
+  //                 // Create WebSocket connection and send answer
+  //                 createWebSocketConnection();
+  //                 console.log("Sending answer payload:", {
+  //                   fromm: from,
+  //                   too: to,
+  //                   answer: pc.localDescription,
+  //                 });
+            
+  //               } catch (processingError) {
+  //                 console.error("Error processing WebRTC offer:", processingError);
+  //               }
+  //             } catch (error) {
+  //               console.error("Unexpected error in offer handling:", error);
+  //             }
+  //             break;
+  //             case "answer":
+  //               const { answer, fromm, too } = message.payload;
+  //               console.log("got answer from other user");
+            
+  //               // Get the PeerConnection instance
+  //               const pcc = PeerConnection.getInstance();
+  //               console.log("PeerConnection instance:", pcc); // Check if it returns a valid object
+  //               console.log(CurrUserId, too);
+            
+  //               // Ensure the answer is intended for the current user
+  //               if (too === CurrUserId) {
+  //                   try {
+  //                       // Check signaling state before setting remote description
+  //                       if (pcc.signalingState === "have-local-offer") {
+  //                           await pcc.setRemoteDescription(new RTCSessionDescription(answer));
+  //                           console.log("Answer set successfully, remote description:", pcc.remoteDescription);
+  //                       } else {
+  //                           console.warn(`Invalid signaling state: ${pcc.signalingState}. Expected 'have-local-offer'.`);
+  //                       }
+  //                   } catch (error) {
+  //                       console.error("Failed to set remote description:", error);
+  //                   }
+  //               } else {
+  //                   console.warn("Answer not intended for this user.");
+  //               }
+  //               break; 
+  //         case "ice-candidate":
+  //           const pccc = PeerConnection.getInstance();
+  //           pccc.remoteDescription
+  //           try {
+  //             // Only add ICE candidate if remote description is set
+  //             if (pccc.remoteDescription) {
+  //               await pccc.addIceCandidate(
+  //                 new RTCIceCandidate(message.payload.candidate)
+  //               );
+  //             } else {
+  //               console.warn(
+  //                 "Remote description not set. Queuing ICE candidate."
+  //               );
+  //               // You might want to implement a queue for ICE candidates
+  //             }
+  //           } catch (error) {
+  //             console.error("Error adding ICE candidate:", error);
+  //           }
+  //           break;
+  //         default:
+  //           break;
+  //       }
+  //     };
+
+  //     socket.onerror = (error) => {
+  //       console.error("WebSocket error:", error);
+  //       socket?.close();
+  //     };
+  //   };
+
+  //   reconnectWebSocket();
+
+  //   return () => {
+  //     if (reconnectTimeout) clearTimeout(reconnectTimeout);
+  //     if (socket && socket.readyState === WebSocket.OPEN) socket.close();
+  //   };
+  // }, [spaceId, token]);
+
+  useEffect(() => {
+    return () => {
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [localStream]);
   // Handle Chat Submit
   const handleChatSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -575,27 +1012,38 @@ const Space = () => {
   }, [userPosition, ws, usersPositions, spaceDetails]);
 
   //---------------video---------------//
-  // video functionality
-
+  // video functionality start call
   const StartCall = async (from: string, to: string) => {
     console.log("inside call");
-  
+
+    // Reset any existing peer connection
+    PeerConnection.resetInstance();
+    PeerConnection.setRemoteUserId(to); 
+
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
+
     try {
-      // Ensure WebSocket is open before initiating call
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         console.error("WebSocket is not open. Cannot start call.");
         return;
       }
-  
+
       const pc = PeerConnection.getInstance();
       if (!pc) {
         console.error("Failed to create peer connection");
         return;
       }
-  
-      const offer = await pc.createOffer();
+
+      // Add error handling for createOffer
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true,
+      });
+
       await pc.setLocalDescription(offer);
-  
+
       ws.send(
         JSON.stringify({
           type: "offer",
@@ -608,7 +1056,25 @@ const Space = () => {
       );
     } catch (error) {
       console.error("Error in StartCall:", error);
+      cleanupCall();
     }
+  };
+  const cleanupCall = () => {
+    // Stop local stream tracks
+    if (localStream) {
+      localStream.getTracks().forEach((track) => track.stop());
+      setLocalStream(null);
+    }
+
+    // Stop remote stream tracks
+    if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
+      const remoteStream = remoteVideoRef.current.srcObject as MediaStream;
+      remoteStream.getTracks().forEach((track) => track.stop());
+      remoteVideoRef.current.srcObject = null;
+    }
+
+    // Reset peer connection
+    PeerConnection.resetInstance();
   };
   const checkFacingUsers = (
     currentUser: UserPositionInfo,
@@ -746,8 +1212,10 @@ const Space = () => {
 
     if (facingUsers.length > 0) {
       console.log("Users facing each other:", facingUsers);
-      // You can add additional logic here, like showing an interaction prompt
       StartCall(user.id, facingUsers[0].userId);
+    } else {
+      // No users facing, clean up the call
+      cleanupCall();
     }
   };
 

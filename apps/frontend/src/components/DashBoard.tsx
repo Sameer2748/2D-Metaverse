@@ -21,10 +21,10 @@ const DashBoard = () => {
     const fetch = async () => {
       const token  = await localStorage.getItem("token")
 
-      if(token){
+      if(!token){
         navigate("/")
       }
-      
+
       const res = await axios.get(
         "http://localhost:3000/api/v1/user/metadata",
         { headers: { authorization: localStorage.getItem("token") } }
