@@ -4,6 +4,7 @@ import axios from "axios";
 import { useRecoilState } from "recoil";
 import { userState } from "../store/userAtom";
 import useWebSocket from "react-use-websocket";
+import { MdOutlineLocalOffer } from "react-icons/md";
 
 // Avatar Direction Enum
 enum AvatarDirection {
@@ -192,7 +193,6 @@ const AnimatedAvatar2: React.FC<{
   );
 };
 
-
 // Main Space Component
 const Space = () => {
   const [user, setUser] = useRecoilState(userState);
@@ -243,7 +243,12 @@ const Space = () => {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const remoteVideoRef = useRef(null);
   const [CurrUserId, setCurrUserId] = useState("");
-  const [wsState, setWsState] = useState<{ status: string, retryCount: number }>({status:"", retryCount:0})
+  const [wsState, setWsState] = useState<{
+    status: string;
+    retryCount: number;
+  }>({ status: "", retryCount: 0 });
+  const [storedOffer, setStoredOffer] = useState<RTCSessionDescriptionInit | null>(null);
+const [storedAnswer, setStoredAnswer] = useState<RTCSessionDescriptionInit | null>(null);
 
 
 
@@ -299,7 +304,15 @@ const Space = () => {
           audio: true,
         });
 
+        // Use the stream directly instead of waiting for state update
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
+
+        // Set the local stream state
         setLocalStream(stream);
+
+
       } catch (error) {
         console.error("Error accessing media devices:", error);
       }
@@ -307,12 +320,13 @@ const Space = () => {
 
     setupVideo();
 
+    // Cleanup function
     return () => {
       if (localStream) {
         localStream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, []);
+  }, []); // Empty dependency array means this runs once on component mount
 
   const PeerConnection = (() => {
     let peerConnection: RTCPeerConnection | null = null;
@@ -324,7 +338,6 @@ const Space = () => {
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
       };
       peerConnection = new RTCPeerConnection(config);
-  
       if (localStream?.getTracks) {
         localStream.getTracks().forEach((track: MediaStreamTrack) => {
           peerConnection?.addTrack(track, localStream);
@@ -339,13 +352,14 @@ const Space = () => {
   
       peerConnection.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
         if (event.candidate) {
-          // Send the candidate to the remote peer via signaling
+          console.log("ice candidate", remoteUserId);
+  
           sendMessage(
             JSON.stringify({
               type: "icecandidate",
               payload: {
-                candidate: event.candidate,
-                toooo: remoteUserId, // Use the stored remote user ID
+                candidate: event.candidate.toJSON(), // Convert to JSON
+                toooo: remoteUserId,
               },
             })
           );
@@ -353,15 +367,17 @@ const Space = () => {
       };
   
       peerConnection.onsignalingstatechange = () => {
-      console.log('Signaling state changed:', peerConnection?.signalingState);
-    };
+        console.log("Signaling state changed:", peerConnection?.signalingState);
+      };
+  
       return peerConnection;
     };
   
     return {
-      getInstance: () => {
-        if (!peerConnection) {
-          peerConnection = createPeerConnection(); // Only create when null
+      getInstance: async() => {
+        if (!peerConnection || peerConnection.signalingState === "closed") {
+          console.log("Creating a new peer connection instance...");
+          peerConnection =  createPeerConnection();
         }
         return peerConnection;
       },
@@ -377,111 +393,108 @@ const Space = () => {
     };
   })();
   
-
   //------------using react-use-websocket for some inbuilt funcionality like auto reconnecting becuase in inbuilt ws there were some reconnecting messing----//
 
-  const {
-    sendMessage,
-    lastJsonMessage,
-    readyState,
-    getWebSocket,
-  } = useWebSocket(`ws://localhost:3001`, {
-    onOpen: () => {
-      console.log("WebSocket connection established");
-      setWsState({ status: "connected", retryCount: 0 });
+  const { sendMessage, lastJsonMessage, readyState, getWebSocket } =
+    useWebSocket(`ws://localhost:3001`, {
+      onOpen: () => {
+        console.log("WebSocket connection established");
+        setWsState({ status: "connected", retryCount: 0 });
 
-      // Immediately join the space after connection
-      sendMessage(
-        JSON.stringify({
-          type: "join",
-          payload: {
-            spaceId: spaceId,
-            token: wstoken,
-          },
-        })
-      );
-    },
-    onClose: () => {
-      setWsState((prev) => ({
-        status: "disconnected",
-        retryCount: prev.retryCount + 1,
-      }));
-      console.log("WebSocket connection closed, retrying...");
-    },
-    onMessage: (event) => {
-      const message = JSON.parse(event.data);
-
-      switch (message.type) {
-        case "space-joined":
-          setUserPosition(message.payload.spawn);
-          setUsersPositions((prev) => {
-            const newPositions = {};
-            message.payload.newUserPositions.forEach((userPos) => {
-              if (userPos.userId !== user?.id) {
-                newPositions[userPos.userId] = {
-                  x: userPos.position.x,
-                  y: userPos.position.y,
-                  direction: AvatarDirection.Front,
-                  username: userPos.username,
-                  name: userPos.name,
-                };
-              }
-            });
-            return newPositions;
-          });
-          break;
-
-        case "movement":
-          const newPosition = message.payload.position;
-          setUsersPositions((prev) => ({
-            ...prev,
-            [message.payload.userId]: {
-              ...newPosition,
-              direction: message.payload.direction,
-              username: message.payload.username,
-              name: message.payload.name,
+        // Immediately join the space after connection
+        sendMessage(
+          JSON.stringify({
+            type: "join",
+            payload: {
+              spaceId: spaceId,
+              token: wstoken,
             },
-          }));
-          break;
+          })
+        );
+      },
+      onClose: () => {
+        setWsState((prev) => ({
+          status: "disconnected",
+          retryCount: prev.retryCount + 1,
+        }));
+        console.log("WebSocket connection closed, retrying...");
+      },
+      onMessage: (event) => {
+        const message = JSON.parse(event.data);
 
-        case "chat":
-          setChatMessages((prev) => [...prev, message.payload]);
-          break;
+        switch (message.type) {
+          case "space-joined":
+            setUserPosition(message.payload.spawn);
+            setUsersPositions((prev) => {
+              const newPositions = {};
+              message.payload.newUserPositions.forEach((userPos) => {
+                if (userPos.userId !== user?.id) {
+                  newPositions[userPos.userId] = {
+                    x: userPos.position.x,
+                    y: userPos.position.y,
+                    direction: AvatarDirection.Front,
+                    username: userPos.username,
+                    name: userPos.name,
+                  };
+                }
+              });
+              return newPositions;
+            });
+            break;
 
-        case "user-left":
-          setUsersPositions((prev) => {
-            const updatedPositions = { ...prev };
-            delete updatedPositions[message.payload.userId];
-            return updatedPositions;
-          });
-          break;
+          case "movement":
+            const newPosition = message.payload.position;
+            setUsersPositions((prev) => ({
+              ...prev,
+              [message.payload.userId]: {
+                ...newPosition,
+                direction: message.payload.direction,
+                username: message.payload.username,
+                name: message.payload.name,
+              },
+            }));
+            break;
 
-        case "offer":
-          const { offer, from, to } = message.payload;
-          handleWebRTCOffer(offer, from, to);
-          break;
+          case "chat":
+            setChatMessages((prev) => [...prev, message.payload]);
+            break;
 
-        case "answer":
-          const { answer, frommm, tooo } = message.payload;
-          handleWebRTCAnswer(answer, frommm, tooo);
-          break;
+          case "user-left":
+            setUsersPositions((prev) => {
+              const updatedPositions = { ...prev };
+              delete updatedPositions[message.payload.userId];
+              return updatedPositions;
+            });
+            break;
 
-        case "ice-candidate":
-          handleICECandidate(message.payload.candidate);
-          break;
+          case "offer":
+            const { offer, from, to } = message.payload;
+            handleWebRTCOffer(offer, from, to);
+            break;
 
-        default:
-          console.warn("Unhandled message type:", message.type);
-      }
-    },
-    shouldReconnect: () => true, // Enable reconnection on close
-  });
+          case "answer":
+            const { answer, frommm, tooo } = message.payload;
+            handleWebRTCAnswer(answer, frommm, tooo);
+            break;
+
+          case "ice-candidate":
+            handleICECandidate(message.payload.candidate);
+            break;
+
+          default:
+            console.warn("Unhandled message type:", message.type);
+        }
+      },
+      shouldReconnect: () => true, // Enable reconnection on close
+    });
 
   const handleWebRTCOffer = async (offer, from, to) => {
     try {
+      setStoredOffer(offer)
       if (to === CurrUserId) {
-        const pc = PeerConnection.getInstance();
+        const pc = await PeerConnection.getInstance();
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        await applyPendingCandidates();
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         console.log(pc);
@@ -505,42 +518,84 @@ const Space = () => {
     }
   };
 
-  const handleWebRTCAnswer = async (answer, frommm, tooo) => {
+  const handleWebRTCAnswer = async (
+    answer: RTCSessionDescriptionInit,
+    frommm: string,
+    tooo: string
+  ) => {
     console.log(frommm, CurrUserId);
-      const peerConnection = PeerConnection.getInstance();
-      console.log(peerConnection);
- 
+  
     if (frommm === CurrUserId) {
-      const pc = PeerConnection.getInstance();
-      console.log(pc);
-      console.log("got answer:", answer);
-      console.log("signaling state:", pc.signalingState);
-      console.log("signaling state:", pc.localDescription);
-      console.log("signaling state:", pc.remoteDescription);
-
-      if (pc.signalingState === "have-local-offer") {
-        await pc.setRemoteDescription(new RTCSessionDescription(answer));
-        console.log(pc.remoteDescription);
-        
+      try {
+        const pc = await PeerConnection.getInstance();
+  
+        if (pc.signalingState === "stable") {
+          pc.close(); // Close the existing peer connection if it’s stable
+        }
+  
+        // Reset PeerConnection for a fresh start
+        const newPc = await PeerConnection.getInstance();
+  
+        // Set the previously stored offer as the local description
+        if (storedOffer) {
+          await newPc.setLocalDescription(storedOffer);
+        }
+  
+        // Store the answer
+        setStoredAnswer(answer);
+  
+        // Set the received answer as the remote description
+        await newPc.setRemoteDescription(new RTCSessionDescription(answer));
+        console.log("Set remote description with the received answer:", answer);
+      } catch (error) {
+        console.error("Error handling WebRTC answer:", error);
       }
-    }else{
-      console.log("not for you");
-      
-    }
-
-  };
-
-  const handleICECandidate = async (candidate) => {
-    const pc = PeerConnection.getInstance();
-    if (pc.remoteDescription) {
-      await pc.addIceCandidate(new RTCIceCandidate(candidate));
+    } else {
+      console.log("This answer is not for you");
     }
   };
+  
+
+  const pendingCandidates: RTCIceCandidate[] = [];
+
+  const handleICECandidate = async (candidate: RTCIceCandidateInit) => {
+    try {
+      const pc = await PeerConnection.getInstance(); // Use your actual method to get the instance
+  
+      if (pc.remoteDescription) {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        console.log("Added ICE candidate:", candidate);
+      } else {
+        // Queue candidate until remote description is set
+        pendingCandidates.push(new RTCIceCandidate(candidate));
+        console.log("Queued ICE candidate:", candidate);
+      }
+    } catch (error) {
+      console.error("Error adding ICE candidate:", error);
+    }
+  };
+  
+
+  // Apply pending candidates after setting remote description
+  const applyPendingCandidates = async () => {
+    try {
+      const pc = await PeerConnection.getInstance(); // Fetch the instance
+      if (pc && pendingCandidates.length > 0) {
+        for (const candidate of pendingCandidates) {
+          await pc.addIceCandidate(candidate);
+          console.log("Applied ICE candidate:", candidate);
+        }
+        pendingCandidates.length = 0; // Clear the queue
+      }
+    } catch (error) {
+      console.error("Error applying pending ICE candidates:", error);
+    }
+  };
+  
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
-  
 
   // Scroll to bottom of chat when messages change
   useEffect(() => {
@@ -550,7 +605,7 @@ const Space = () => {
   useEffect(() => {
     return () => {
       if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
+        localStream.getTracks().forEach((track) => track.stop());
       }
     };
   }, [localStream]);
@@ -560,17 +615,61 @@ const Space = () => {
 
     if (!chatInput.trim()) return;
 
+    sendMessage(
+      JSON.stringify({
+        type: "chat",
+        payload: {
+          message: chatInput,
+        },
+      })
+    );
+    setChatInput("");
+  };
 
+  const StartCall = async (from: string, to: string) => {
+    console.log("Inside StartCall");
+  
+    PeerConnection.setRemoteUserId(to);
+    console.log("local stream", localStream);
+  
+    try {
+      const pc = await PeerConnection.getInstance();
+  
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+  
+      // Store the offer
+      setStoredOffer(offer);
+  
+      // Send the offer via signaling (e.g., WebSocket)
       sendMessage(
         JSON.stringify({
-          type: "chat",
+          type: "offer",
           payload: {
-            message: chatInput,
+            from,
+            to,
+            offer: pc.localDescription, // Always send the latest description
           },
         })
       );
-      setChatInput("");
-    
+    } catch (error) {
+      console.error("Error in StartCall:", error);
+      cleanupCall();
+    }
+  };
+  
+  const cleanupCall = () => {
+    // // Stop local stream tracks
+
+    // Stop remote stream tracks
+    if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
+      const remoteStream = remoteVideoRef.current.srcObject as MediaStream;
+      remoteStream.getTracks().forEach((track) => track.stop());
+      remoteVideoRef.current.srcObject = null;
+    }
+
+    // Reset peer connection
+    PeerConnection.resetInstance();
   };
 
   //-----------------------------------//
@@ -599,65 +698,6 @@ const Space = () => {
     };
   }, [userPosition, usersPositions, spaceDetails]);
 
-  const StartCall = async (
-    from: string,
-    to: string
-  ) => {
-    console.log("Inside StartCall");
-  
-    PeerConnection.resetInstance();
-    PeerConnection.setRemoteUserId(to);
-  
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
-    }
-  
-    try {
-      const pc = PeerConnection.getInstance();
-      if (!pc) {
-        console.error("Failed to create peer connection");
-        return;
-      }
-  
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      console.log(pc);
-      
-  
-      // Send offer through WebSocket
-      sendMessage(
-        JSON.stringify({
-          type: "offer",
-          payload: {
-            from,
-            to,
-            offer: pc.localDescription,
-          },
-        })
-      );
-      
-    } catch (error) {
-      console.error("Error in StartCall:", error);
-      cleanupCall();
-    }
-  };
-  const cleanupCall = () => {
-    // // Stop local stream tracks
-    if (localStream) {
-      localStream.getTracks().forEach((track) => track.stop());
-      setLocalStream(null);
-    }
-
-    // Stop remote stream tracks
-    if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
-      const remoteStream = remoteVideoRef.current.srcObject as MediaStream;
-      remoteStream.getTracks().forEach((track) => track.stop());
-      remoteVideoRef.current.srcObject = null;
-    }
-
-    // Reset peer connection
-    PeerConnection.resetInstance();
-  };
   const checkFacingUsers = (
     currentUser: UserPositionInfo,
     otherUsers: { [key: string]: UserPositionInfo }
@@ -705,17 +745,19 @@ const Space = () => {
 
     return facingUsers;
   };
- const handleKeyDown = (event: KeyboardEvent) => {
-    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (
+      ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)
+    ) {
       event.preventDefault();
     }
-  
+
     if (!spaceDetails) return;
-  
+
     const prevPosition = { ...userPosition };
     let newPosition = { ...userPosition };
     let newDirection = userDirection;
-  
+
     switch (event.key) {
       case "ArrowUp":
         newPosition.y = Math.max(0, userPosition.y - 1);
@@ -742,13 +784,13 @@ const Space = () => {
       default:
         return;
     }
-  
+
     newDirection = determineDirection(prevPosition, newPosition);
-  
+
     const elementAtNewPosition = spaceDetails.elements.find(
       (el) => el.x === newPosition.x && el.y === newPosition.y
     );
-  
+
     if (
       (elementAtNewPosition && elementAtNewPosition.element.static) ||
       Object.values(usersPositions).some(
@@ -757,10 +799,10 @@ const Space = () => {
     ) {
       return;
     }
-  
+
     setUserPosition(newPosition);
     setUserDirection(newDirection);
-  
+
     // Send movement data
     sendMessage(
       JSON.stringify({
@@ -772,12 +814,12 @@ const Space = () => {
         },
       })
     );
-  
+
     const facingUsers = checkFacingUsers(
       { ...newPosition, direction: newDirection, userId: user.id },
       usersPositions
     );
-  
+
     if (facingUsers.length > 0) {
       console.log("Users facing each other:", facingUsers);
       StartCall(user.id, facingUsers[0].userId);
