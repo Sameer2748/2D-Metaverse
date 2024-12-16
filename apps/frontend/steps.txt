@@ -1,0 +1,7 @@
+1 = right now i have completed the user loggin 
+2 = now the element creation , map creation and space creation is done
+3 = now the space rendering is done and the avatar movement is done  using the websocket connection
+4 = now i integerated the chat using websocket connection
+5 = now i am creating the video functionality when i face someone so first i am using the inbuilt websocket in react but the error i was facing was websocket connection closing automatically and then reconnecting it was a little messy but i did it but it was too much code so i search for some library which abstract the reconnecting logic and provide some hooks
+6 = to solve the problem now i am using react-use-websocket and now its working perfect the offer sending and getting offer and creating answer and sending answer
+7 = but right now i am rinnig a problem at time of starting call i am storing the offer from p1 in localdescription and sending it to p2 and p2 now store the offer in remote descritption and create answer and store answer in localdescription and send the answer to p1 so now when i got the answer p1 is trying to store the answer as remotedescription but i have signingstatus as stable which means p1 have no localdescription which he store at time of starting the call in p1's peerconnection should have signingStatus as have-local-offer but i think its is reseting the instance of peerconnection  so in p1's peerconnection it have null values in local descritption
