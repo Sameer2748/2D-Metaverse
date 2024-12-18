@@ -12,18 +12,21 @@
   "dependencies": {
     "axios": "^1.7.8",
     "lucide-react": "^0.465.0",
+    "peerjs": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-icons": "^5.3.0",
     "react-router-dom": "^7.0.1",
     "react-use-websocket": "^4.11.1",
     "recoil": "^0.7.7",
+    "simple-peer": "^9.11.1",
     "sonner": "^1.7.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@types/simple-peer": "^9.11.8",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.15.0",

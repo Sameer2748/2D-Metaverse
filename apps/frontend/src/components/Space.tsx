@@ -5,6 +5,7 @@ import { useRecoilState } from "recoil";
 import { userState } from "../store/userAtom";
 import useWebSocket from "react-use-websocket";
 import { MdOutlineLocalOffer } from "react-icons/md";
+import Peer from "peerjs";
 
 // Avatar Direction Enum
 enum AvatarDirection {
@@ -25,10 +26,11 @@ interface UserPositionInfo {
   x: number;
   y: number;
   direction: AvatarDirection;
-  username?: string;
   userId: string;
+  username?: string;
+  name?: string;
+  peerId?: string;
   Avatar?: string;
-  name: string;
 }
 
 // Avatar Sprite Configuration Interface
@@ -225,6 +227,7 @@ const Space = () => {
     userId: user?.id || "",
     name: user?.name || "",
     Avatar: user?.avatar || "",
+    peerId: "",
   });
   const [userDirection, setUserDirection] = useState<AvatarDirection>(
     AvatarDirection.Front
@@ -240,17 +243,81 @@ const Space = () => {
   const [spaceDetailss, setSpaceDetailss] = useState({});
   const [showUsers, setShowUsers] = useState(true);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [localvideo, setLocalVideo] = useState<MediaStream | null>(null);
+  const [remotevideo, setremoteVideo] = useState<MediaStream | null>(null);
   const remoteVideoRef = useRef(null);
-  const [CurrUserId, setCurrUserId] = useState("");
-  const [wsState, setWsState] = useState<{
-    status: string;
-    retryCount: number;
-  }>({ status: "", retryCount: 0 });
-  const [storedOffer, setStoredOffer] = useState<RTCSessionDescriptionInit | null>(null);
-const [storedAnswer, setStoredAnswer] = useState<RTCSessionDescriptionInit | null>(null);
+  const peerInstance = useRef<Peer>(null);
+  const [currUserId, setCurrUserId] = useState("");
 
+  const peerInstanceRef = useRef<Peer | null>(null);
+  const [peerId, setPeerId] = useState("");
+  const [isInitialized, setIsInitialized] = useState(false);
 
+  // useEffect(()=> {
+  //   const fetch = async()=>{
+
+  //     const stream = await navigator.mediaDevices.getUserMedia({
+  //       video: true,
+  //       audio: true,
+  //     });
+  //     setLocalVideo(stream);
+  //   }
+  //   fetch()
+  // },[])
+  
+
+  useEffect(() => {
+    // Cleanup function to close existing connections
+    return () => {
+      if (peerInstanceRef.current) {
+        peerInstanceRef.current.destroy();
+        peerInstanceRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!peerInstanceRef.current) {
+      const peer = new Peer();
+
+      peer.on("open", (id) => {
+        console.log("Peer ID:", id);
+        setPeerId(id);
+        peerInstanceRef.current = peer; // Assign to ref
+        setIsInitialized(true); // Mark Peer as initialized
+      });
+
+      peer.on("call", async (call) => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: true,
+          });
+
+          // Set the local stream to local video element
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = stream;
+          }
+
+          call.answer(stream); // Answer the incoming call with local media stream
+
+          console.log("answered the stream", stream);
+
+          call.on("stream", (remoteStream) => {
+            if (remoteVideoRef.current) {
+              remoteVideoRef.current.srcObject = remoteStream;
+            }
+          });
+        } catch (error) {
+          console.error("Error answering call:", error);
+        }
+      });
+
+      peer.on("error", (error) => {
+        console.error("Peer error:", error);
+      });
+    }
+  }, []);
 
   //user metadata space details
   useEffect(() => {
@@ -261,7 +328,6 @@ const [storedAnswer, setStoredAnswer] = useState<RTCSessionDescriptionInit | nul
       );
       console.log(res.data.user);
       setCurrUserId(res.data.user.id);
-
       setUser(res.data.user);
     };
 
@@ -276,6 +342,7 @@ const [storedAnswer, setStoredAnswer] = useState<RTCSessionDescriptionInit | nul
           }
         );
         setSpaceDetails(response.data);
+
         const res = await axios.post(
           `http://localhost:3000/api/v1/user/${response.data.creatorId}`,
           {},
@@ -295,128 +362,19 @@ const [storedAnswer, setStoredAnswer] = useState<RTCSessionDescriptionInit | nul
     fetch();
   }, []);
 
-  /// create a localstream
-  useEffect(() => {
-    const setupVideo = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
-
-        // Use the stream directly instead of waiting for state update
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
-
-        // Set the local stream state
-        setLocalStream(stream);
-
-
-      } catch (error) {
-        console.error("Error accessing media devices:", error);
-      }
-    };
-
-    setupVideo();
-
-    // Cleanup function
-    return () => {
-      if (localStream) {
-        localStream.getTracks().forEach((track) => track.stop());
-      }
-    };
-  }, []); // Empty dependency array means this runs once on component mount
-
-  const PeerConnection = (() => {
-    let peerConnection: RTCPeerConnection | null = null;
-    let remoteUserId: string | null = null;
-  
-    // Create peer connection (do not reset unless needed)
-    const createPeerConnection = () => {
-      const config = {
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-      };
-      peerConnection = new RTCPeerConnection(config);
-      if (localStream?.getTracks) {
-        localStream.getTracks().forEach((track: MediaStreamTrack) => {
-          peerConnection?.addTrack(track, localStream);
-        });
-      }
-  
-      peerConnection.ontrack = function (event: RTCTrackEvent) {
-        if (remoteVideoRef?.current) {
-          remoteVideoRef.current.srcObject = event.streams[0];
-        }
-      };
-  
-      peerConnection.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
-        if (event.candidate) {
-          console.log("ice candidate", remoteUserId);
-  
-          sendMessage(
-            JSON.stringify({
-              type: "icecandidate",
-              payload: {
-                candidate: event.candidate.toJSON(), // Convert to JSON
-                toooo: remoteUserId,
-              },
-            })
-          );
-        }
-      };
-  
-      peerConnection.onsignalingstatechange = () => {
-        console.log("Signaling state changed:", peerConnection?.signalingState);
-      };
-  
-      return peerConnection;
-    };
-  
-    return {
-      getInstance: async() => {
-        if (!peerConnection || peerConnection.signalingState === "closed") {
-          console.log("Creating a new peer connection instance...");
-          peerConnection =  createPeerConnection();
-        }
-        return peerConnection;
-      },
-      resetInstance: () => {
-        if (peerConnection) {
-          peerConnection.close(); // Close the existing peer connection
-        }
-        peerConnection = null; // Now reset
-      },
-      setRemoteUserId: (userId: string) => {
-        remoteUserId = userId;
-      },
-    };
-  })();
-  
-  //------------using react-use-websocket for some inbuilt funcionality like auto reconnecting becuase in inbuilt ws there were some reconnecting messing----//
-
-  const { sendMessage, lastJsonMessage, readyState, getWebSocket } =
-    useWebSocket(`ws://localhost:3001`, {
+  // WebSocket setup
+  const { sendMessage, lastJsonMessage, readyState } = useWebSocket(
+    `ws://localhost:3001`,
+    {
       onOpen: () => {
         console.log("WebSocket connection established");
-        setWsState({ status: "connected", retryCount: 0 });
 
-        // Immediately join the space after connection
-        sendMessage(
-          JSON.stringify({
-            type: "join",
-            payload: {
-              spaceId: spaceId,
-              token: wstoken,
-            },
-          })
-        );
+        // Wait for Peer ID before sending the 'join' message
+        if (isInitialized && peerId) {
+          sendJoinMessage();
+        }
       },
       onClose: () => {
-        setWsState((prev) => ({
-          status: "disconnected",
-          retryCount: prev.retryCount + 1,
-        }));
         console.log("WebSocket connection closed, retrying...");
       },
       onMessage: (event) => {
@@ -424,33 +382,57 @@ const [storedAnswer, setStoredAnswer] = useState<RTCSessionDescriptionInit | nul
 
         switch (message.type) {
           case "space-joined":
+            // Set the current user's position
             setUserPosition(message.payload.spawn);
+
+            // Set other users' positions, explicitly excluding the current user
             setUsersPositions((prev) => {
-              const newPositions = {};
+              const updatedPositions: { [key: string]: UserPositionInfo } = {};
+
               message.payload.newUserPositions.forEach((userPos) => {
+                // Only add other users, not the current user
                 if (userPos.userId !== user?.id) {
-                  newPositions[userPos.userId] = {
+                  updatedPositions[userPos.userId] = {
                     x: userPos.position.x,
                     y: userPos.position.y,
                     direction: AvatarDirection.Front,
-                    username: userPos.username,
+                    userId: userPos.userId,
                     name: userPos.name,
+                    peerId: userPos.peerId,
                   };
                 }
               });
-              return newPositions;
+
+              return updatedPositions;
             });
             break;
 
+          case "user-joined":
+            // Only add the new user if it's not the current user
+            if (message.payload.userId !== user?.id) {
+              setUsersPositions((prev) => ({
+                ...prev,
+                [message.payload.userId]: {
+                  x: message.payload.position.x,
+                  y: message.payload.position.y,
+                  direction: AvatarDirection.Front,
+                  userId: message.payload.userId,
+                  name: message.payload.name,
+                  peerId: message.payload.peerId,
+                },
+              }));
+            }
+            break;
           case "movement":
-            const newPosition = message.payload.position;
             setUsersPositions((prev) => ({
               ...prev,
               [message.payload.userId]: {
-                ...newPosition,
+                x: message.payload.position.x,
+                y: message.payload.position.y,
                 direction: message.payload.direction,
-                username: message.payload.username,
-                name: message.payload.name,
+                userId: message.payload.userId,
+                name: message.payload.name, // Add name
+                peerId: message.payload.peerId,
               },
             }));
             break;
@@ -467,131 +449,39 @@ const [storedAnswer, setStoredAnswer] = useState<RTCSessionDescriptionInit | nul
             });
             break;
 
-          case "offer":
-            const { offer, from, to } = message.payload;
-            handleWebRTCOffer(offer, from, to);
-            break;
-
-          case "answer":
-            const { answer, frommm, tooo } = message.payload;
-            handleWebRTCAnswer(answer, frommm, tooo);
-            break;
-
-          case "ice-candidate":
-            handleICECandidate(message.payload.candidate);
-            break;
-
           default:
             console.warn("Unhandled message type:", message.type);
         }
       },
-      shouldReconnect: () => true, // Enable reconnection on close
-    });
-
-  const handleWebRTCOffer = async (offer, from, to) => {
-    try {
-      setStoredOffer(offer)
-      if (to === CurrUserId) {
-        const pc = await PeerConnection.getInstance();
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
-        await applyPendingCandidates();
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        console.log(pc);
-        console.log("sending answer:", answer);
-        sendMessage(
-          JSON.stringify({
-            type: "answer",
-            payload: {
-              answer: pc.localDescription,
-              fromm: from,
-              too: to,
-              tempspaceid: spaceId,
-              userr: user,
-              userPosition: userPosition,
-            },
-          })
-        );
-      }
-    } catch (error) {
-      console.error("Error handling WebRTC offer:", error);
+      shouldReconnect: () => true, // Enable reconnection
     }
-  };
+  );
 
-  const handleWebRTCAnswer = async (
-    answer: RTCSessionDescriptionInit,
-    frommm: string,
-    tooo: string
-  ) => {
-    console.log(frommm, CurrUserId);
-  
-    if (frommm === CurrUserId) {
-      try {
-        const pc = await PeerConnection.getInstance();
-  
-        if (pc.signalingState === "stable") {
-          pc.close(); // Close the existing peer connection if it’s stable
-        }
-  
-        // Reset PeerConnection for a fresh start
-        const newPc = await PeerConnection.getInstance();
-  
-        // Set the previously stored offer as the local description
-        if (storedOffer) {
-          await newPc.setLocalDescription(storedOffer);
-        }
-  
-        // Store the answer
-        setStoredAnswer(answer);
-  
-        // Set the received answer as the remote description
-        await newPc.setRemoteDescription(new RTCSessionDescription(answer));
-        console.log("Set remote description with the received answer:", answer);
-      } catch (error) {
-        console.error("Error handling WebRTC answer:", error);
-      }
+  // Helper function to send the 'join' message
+  const sendJoinMessage = () => {
+    if (peerId) {
+      sendMessage(
+        JSON.stringify({
+          type: "join",
+          payload: {
+            spaceId: spaceId,
+            token: wstoken,
+            peerId, // Include the Peer ID
+          },
+        })
+      );
+      console.log("Join message sent with Peer ID:", peerId);
     } else {
-      console.log("This answer is not for you");
+      console.warn("Peer ID is not yet available!");
     }
   };
-  
 
-  const pendingCandidates: RTCIceCandidate[] = [];
-
-  const handleICECandidate = async (candidate: RTCIceCandidateInit) => {
-    try {
-      const pc = await PeerConnection.getInstance(); // Use your actual method to get the instance
-  
-      if (pc.remoteDescription) {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        console.log("Added ICE candidate:", candidate);
-      } else {
-        // Queue candidate until remote description is set
-        pendingCandidates.push(new RTCIceCandidate(candidate));
-        console.log("Queued ICE candidate:", candidate);
-      }
-    } catch (error) {
-      console.error("Error adding ICE candidate:", error);
+  // Resend 'join' message when Peer ID is set
+  useEffect(() => {
+    if (isInitialized && peerId) {
+      sendJoinMessage();
     }
-  };
-  
-
-  // Apply pending candidates after setting remote description
-  const applyPendingCandidates = async () => {
-    try {
-      const pc = await PeerConnection.getInstance(); // Fetch the instance
-      if (pc && pendingCandidates.length > 0) {
-        for (const candidate of pendingCandidates) {
-          await pc.addIceCandidate(candidate);
-          console.log("Applied ICE candidate:", candidate);
-        }
-        pendingCandidates.length = 0; // Clear the queue
-      }
-    } catch (error) {
-      console.error("Error applying pending ICE candidates:", error);
-    }
-  };
-  
+  }, [isInitialized, peerId]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -602,13 +492,6 @@ const [storedAnswer, setStoredAnswer] = useState<RTCSessionDescriptionInit | nul
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
-  useEffect(() => {
-    return () => {
-      if (localStream) {
-        localStream.getTracks().forEach((track) => track.stop());
-      }
-    };
-  }, [localStream]);
   // Handle Chat Submit
   const handleChatSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -626,51 +509,51 @@ const [storedAnswer, setStoredAnswer] = useState<RTCSessionDescriptionInit | nul
     setChatInput("");
   };
 
-  const StartCall = async (from: string, to: string) => {
-    console.log("Inside StartCall");
-  
-    PeerConnection.setRemoteUserId(to);
-    console.log("local stream", localStream);
-  
-    try {
-      const pc = await PeerConnection.getInstance();
-  
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-  
-      // Store the offer
-      setStoredOffer(offer);
-  
-      // Send the offer via signaling (e.g., WebSocket)
-      sendMessage(
-        JSON.stringify({
-          type: "offer",
-          payload: {
-            from,
-            to,
-            offer: pc.localDescription, // Always send the latest description
-          },
-        })
-      );
-    } catch (error) {
-      console.error("Error in StartCall:", error);
-      cleanupCall();
-    }
-  };
-  
-  const cleanupCall = () => {
-    // // Stop local stream tracks
+  // const StartCall = async (from: string, to: string) => {
+  //   console.log("Inside StartCall");
 
-    // Stop remote stream tracks
-    if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
-      const remoteStream = remoteVideoRef.current.srcObject as MediaStream;
-      remoteStream.getTracks().forEach((track) => track.stop());
-      remoteVideoRef.current.srcObject = null;
-    }
+  //   PeerConnection.setRemoteUserId(to);
+  //   console.log("local stream", localStream);
 
-    // Reset peer connection
-    PeerConnection.resetInstance();
-  };
+  //   try {
+  //     const pc = await PeerConnection.getInstance();
+
+  //     const offer = await pc.createOffer();
+  //     await pc.setLocalDescription(offer);
+
+  //     // Store the offer
+  //     setStoredOffer(offer);
+
+  //     // Send the offer via signaling (e.g., WebSocket)
+  //     sendMessage(
+  //       JSON.stringify({
+  //         type: "offer",
+  //         payload: {
+  //           from,
+  //           to,
+  //           offer: pc.localDescription, // Always send the latest description
+  //         },
+  //       })
+  //     );
+  //   } catch (error) {
+  //     console.error("Error in StartCall:", error);
+  //     cleanupCall();
+  //   }
+  // };
+
+  // const cleanupCall = () => {
+  //   // // Stop local stream tracks
+
+  //   // Stop remote stream tracks
+  //   if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
+  //     const remoteStream = remoteVideoRef.current.srcObject as MediaStream;
+  //     remoteStream.getTracks().forEach((track) => track.stop());
+  //     remoteVideoRef.current.srcObject = null;
+  //   }
+
+  //   // Reset peer connection
+  //   PeerConnection.resetInstance();
+  // };
 
   //-----------------------------------//
 
@@ -701,10 +584,12 @@ const [storedAnswer, setStoredAnswer] = useState<RTCSessionDescriptionInit | nul
   const checkFacingUsers = (
     currentUser: UserPositionInfo,
     otherUsers: { [key: string]: UserPositionInfo }
-  ): { userId: string; name: string }[] => {
-    const facingUsers: { userId: string; name: string }[] = [];
+  ): { userId: string; name: string; peerId: string }[] => {
+    const facingUsers: any = [];
 
     for (const [userId, otherUser] of Object.entries(otherUsers)) {
+      if (!otherUser) continue;
+
       // Determine the opposite direction for each facing scenario
       const oppositeFacingMap = {
         [AvatarDirection.Right]: AvatarDirection.Left,
@@ -739,7 +624,11 @@ const [storedAnswer, setStoredAnswer] = useState<RTCSessionDescriptionInit | nul
             currentUser.x === otherUser.x));
 
       if (isAdjacent && isFacing) {
-        facingUsers.push({ userId, name: otherUser.name || "Unknown" });
+        facingUsers.push({
+          userId,
+          name: otherUser.name || otherUser.username || "Unknown User",
+          peerId: otherUser.peerId,
+        });
       }
     }
 
@@ -811,6 +700,7 @@ const [storedAnswer, setStoredAnswer] = useState<RTCSessionDescriptionInit | nul
           x: newPosition.x,
           y: newPosition.y,
           direction: newDirection,
+          peerId,
         },
       })
     );
@@ -821,12 +711,108 @@ const [storedAnswer, setStoredAnswer] = useState<RTCSessionDescriptionInit | nul
     );
 
     if (facingUsers.length > 0) {
+      console.log("Current User Position:", userPosition);
+      console.log("Users Positions:", usersPositions);
       console.log("Users facing each other:", facingUsers);
-      StartCall(user.id, facingUsers[0].userId);
-    } else {
-      cleanupCall();
+      startCall(peerId, facingUsers[0].peerId);
+    }else{
+      endCall();
     }
   };
+  useEffect(() => {
+    navigator.mediaDevices
+      .enumerateDevices()
+      .then((devices) => {
+        console.log("Available devices:", devices);
+      })
+      .catch((err) => {
+        console.error("Error enumerating devices:", err);
+      });
+  }, []);
+
+  const MAX_RETRIES = 5; // Maximum retry attempts
+const RETRY_INTERVAL = 2000; // Time (ms) between retries
+
+const getVideoDevice = async () => {
+  let retries = 0;
+
+  while (retries < MAX_RETRIES) {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevice = devices.find(device => device.kind === "videoinput");
+
+      if (videoDevice) {
+        console.log("Video device found:", videoDevice.label);
+        return videoDevice;
+      } else {
+        console.warn("No video device found. Retrying...");
+        retries++;
+        await new Promise(resolve => setTimeout(resolve, RETRY_INTERVAL));
+      }
+    } catch (error) {
+      console.error("Error checking devices:", error);
+      return null;
+    }
+  }
+
+  console.error("Failed to find video device after retries.");
+  return null;
+};
+
+  const startCall = async (from: string, to: string) => {
+    const videoDevice = await getVideoDevice();
+
+    if (!videoDevice) {
+      alert("No video device available. Please check your hardware.");
+      return;
+    }
+  
+    const constraints = {
+      video: { deviceId: videoDevice.deviceId ? { exact: videoDevice.deviceId } : undefined },
+      audio: true,
+    };
+
+    // Check if Peer is initialized
+    if (!peerInstanceRef.current || !isInitialized) {
+      console.error("Peer instance not initialized yet");
+      return;
+    }
+
+    try {
+      // Get local media stream
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      // Set the local stream to local video element
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+
+      // Make the call to the remote Peer ID
+      const call = peerInstanceRef.current.call(to, stream);
+
+      // Listen for the remote stream
+      call.on("stream", (remoteStream) => {
+        console.log("Received remote stream");
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = remoteStream;
+        }
+      });
+
+      // Handle call errors
+      call.on("error", (err) => {
+        console.error("Call error:", err);
+      });
+    } catch (error) {
+      console.error("Error in startCall:", error);
+    }
+  };
+
+  const endCall = async()=>{
+    const existingStream2= remoteVideoRef.current?.srcObject;
+    if (existingStream2) {
+      existingStream2.getTracks().forEach(track => track.stop());
+    }
+  }
 
   /// ----------------------------------------//
 
