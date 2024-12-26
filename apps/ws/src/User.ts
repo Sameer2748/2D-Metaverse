@@ -10,6 +10,7 @@ interface User {
   ws: WebSocket;
   position: { x: number; y: number };
   name: string;
+  peerId: string;
 }
 
 interface ChatMessage {
@@ -27,6 +28,18 @@ class UserManager {
   private spaceUsers: Map<string, Set<string>> = new Map();
 
   addUser(user: User) {
+    // Remove any existing entries for this user in the same space
+    const existingUsers = Array.from(this.users.values()).filter(
+      (existingUser) =>
+        existingUser.userId === user.userId &&
+        existingUser.spaceId === user.spaceId
+    );
+
+    existingUsers.forEach((existingUser) => {
+      this.removeUser(existingUser.id);
+    });
+
+    // Add the new user
     this.users.set(user.id, user);
 
     if (!this.spaceUsers.has(user.spaceId)) {
@@ -34,18 +47,18 @@ class UserManager {
     }
     this.spaceUsers.get(user.spaceId)?.add(user.id);
   }
-
   removeUser(userId: string) {
     const user = this.users.get(userId);
     if (user) {
       this.spaceUsers.get(user.spaceId)?.delete(userId);
       this.users.delete(userId);
+      console.log(`Removed user ${userId} from space ${user.spaceId}`);
     }
   }
 
   getUsersInSpace(
     spaceId: string
-  ): { userId: string; position: { x: number; y: number } }[] {
+  ): { userId: string; position: { x: number; y: number }; peerId: string }[] {
     const userIds = this.spaceUsers.get(spaceId) || new Set();
     return Array.from(userIds)
       .map((id) => this.users.get(id))
@@ -54,6 +67,7 @@ class UserManager {
         userId: user!.userId,
         position: user!.position,
         name: user!.name,
+        peerId: user!.peerId,
       }));
   }
 
@@ -102,7 +116,7 @@ function setupWebSocketServer(wss: WebSocketServer) {
 
         switch (message.type) {
           case "join":
-            const { spaceId, token } = message.payload;
+            const { spaceId, token, peerId } = message.payload;
 
             // Verify token
             const decoded = jwt.verify(token, JWT_PASSWORD) as {
@@ -113,22 +127,23 @@ function setupWebSocketServer(wss: WebSocketServer) {
               return;
             }
 
-            // Check if user is already connected
-            const existingUserInSpace = Array.from(
+            // Find and remove any existing connections for this user in this space
+            const existingConnections = Array.from(
               userManager.users.values()
-            ).find(
+            ).filter(
               (user) =>
                 user.userId === decoded.userId && user.spaceId === spaceId
             );
 
-            // If user is already connected, close the existing connection
-            if (existingUserInSpace) {
-              // Close the existing WebSocket
-              existingUserInSpace.ws.close();
-
-              // Remove the existing user from the user manager
-              userManager.removeUser(existingUserInSpace.id);
-            }
+            // Close and remove existing connections
+            existingConnections.forEach((existingUser) => {
+              try {
+                existingUser.ws.close();
+              } catch (error) {
+                console.error("Error closing existing connection:", error);
+              }
+              userManager.removeUser(existingUser.id);
+            });
 
             // Fetch space with elements
             const space = await client.space.findUnique({
@@ -154,6 +169,7 @@ function setupWebSocketServer(wss: WebSocketServer) {
             const userData = await client.user.findUnique({
               where: { id: decoded.userId },
             });
+            // console.log(userData);
 
             // Create user
             const user: User = {
@@ -163,37 +179,51 @@ function setupWebSocketServer(wss: WebSocketServer) {
               ws,
               position: spawnPosition,
               name: userData?.name,
+              peerId,
             };
 
             userManager.addUser(user);
 
             const allusers = userManager.getUsersInSpace(spaceId);
-            // console.log("allusers",allusers);
+            console.log("allusers", allusers);
 
             // Send spawn position to the joining user
+            // In the "join" case
             ws.send(
               JSON.stringify({
                 type: "space-joined",
                 payload: {
                   spawn: spawnPosition,
-                  newUserPositions: allusers,
-                  username: userData?.username,
+                  newUserPositions: allusers.map((user) => ({
+                    userId: user.userId,
+                    position: user.position,
+                    name: user.name,
+                    peerId: user.peerId,
+                  })),
+                  userId: decoded.userId,
                   name: userData?.name,
+                  peerId,
                 },
               })
             );
 
-            // Broadcast user joined to other users in the space
-            userManager.broadcastToSpace(spaceId, {
-              type: "user-joined",
-              payload: {
-                userId: decoded.userId,
-                position: spawnPosition,
-                username: userData?.name,
-                name: userData?.name,
+            // In the "user-joined" broadcast
+            userManager.broadcastToSpace(
+              spaceId,
+              {
+                type: "user-joined",
+                payload: {
+                  userId: decoded.userId,
+                  position: spawnPosition,
+                  name: userData?.name,
+                  peerId,
+                },
+                // Exclude the joining user from receiving their own join message
               },
-            });
+              decoded.userId
+            );
             break;
+
           case "movement":
             const { x, y, direction } = message.payload;
             const existingUser2 = userManager.findUserByWebSocket(ws);
@@ -272,10 +302,12 @@ function setupWebSocketServer(wss: WebSocketServer) {
                     userId: existingUser2.userId,
                     position: { x, y },
                     direction: direction,
+                    peerId: existingUser2.peerId,
+                    name: existingUser2.name, // Ensure name is sent
                   },
                 },
                 existingUser2.userId
-              ); // Pass the user ID to exclude
+              );
             }
             break;
           case "chat":
@@ -311,112 +343,16 @@ function setupWebSocketServer(wss: WebSocketServer) {
               );
             }
             break;
-          case "offer":
-            const { offer, from, to } = message.payload;
-            const existingUser3 = userManager.findUserByWebSocket(ws);
-
-            if (existingUser3) {
-              // Find the recipient user in the same space
-              const recipientUser = Array.from(userManager.users.values()).find(
-                (user) =>
-                  user.userId === to && user.spaceId === existingUser3.spaceId
-              );
-
-              if (recipientUser) {
-                recipientUser.ws.send(
-                  JSON.stringify({
-                    type: "offer",
-                    payload: {
-                      offer,
-                      from,
-                      to,
-                    },
-                  })
-                );
-              } else {
-                console.warn(`User not found with id: ${to}`);
-              }
-            }
-            break;
-          case "answer":
-            const { answer, fromm, too, tempspaceid, userr, userPosition } =
-              message.payload;
-
-            console.log("Answer received:", { fromm, too, tempspaceid });
-
-            // Find the recipient user
-            let recipientUser = userManager.findUserByUserId(
-              fromm,
-              tempspaceid
-            );
-
-            if (!recipientUser) {
-              console.warn(
-                `Recipient user not found, attempting to add: ${fromm}`
-              );
-
-              // If user not found, create a new user entry
-              const newUser: User = {
-                id: generateUniqueId(),
-                userId: fromm,
-                spaceId: tempspaceid,
-                ws,
-                position: userPosition || { x: 0, y: 0 },
-                name: userr?.name || "Unknown",
-              };
-
-              userManager.addUser(newUser);
-              recipientUser = newUser;
-            }
-
-            // Send answer to the recipient
-            if (
-              recipientUser &&
-              recipientUser.ws.readyState === WebSocket.OPEN
-            ) {
-              try {
-                recipientUser.ws.send(
-                  JSON.stringify({
-                    type: "answer",
-                    payload: {
-                      answer,
-                      fromm: too,
-                      too: fromm,
-                    },
-                  })
-                );
-                console.log("Answer sent successfully");
-              } catch (error) {
-                console.error("Failed to send answer:", error);
-              }
-            } else {
-              console.warn("Recipient WebSocket not available");
-            }
-            break;
-          case "icecandidate":
-            const { candidate, tooo } = message.payload;
-            const senderUser = userManager.findUserByWebSocket(ws);
-
-            if (senderUser) {
-              const recipient = Array.from(userManager.users.values()).find(
-                (user) =>
-                  user.userId === tooo && user.spaceId === senderUser.spaceId
-              );
-
-              if (recipient) {
-                recipient.ws.send(
-                  JSON.stringify({
-                    type: "ice-candidate",
-                    payload: { candidate },
-                  })
-                );
-              }
-            }
-            break;
         }
       } catch (error) {
         console.error("WebSocket error:", error);
         ws.close();
+      }
+    });
+    ws.on("error", () => {
+      const user = userManager.findUserByWebSocket(ws);
+      if (user) {
+        userManager.removeUser(user.id);
       }
     });
 

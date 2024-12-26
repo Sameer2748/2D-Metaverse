@@ -46,11 +46,11 @@ const SignUp = () => {
 
     return (
         <div className='w-full h-screen flex justify-center items-center bg-logbg'>
-            <div className='w-[450px] h-[550px] bg-white text-black flex flex-col  items-center rounded-xl p-2'>
+            <div className='w-[450px] h-[570px] bg-white text-black flex flex-col  items-center rounded-xl p-2'>
                 <div className='flex gap-16 pt-6'>
-                    <img width={40} height={40} src="https://cdn.gather.town/v0/b/gather-town.appspot.com/o/images%2Favatars%2Favatar_19_dancing.png?alt=media&token=03c3e96f-9148-42f9-a667-e8aeeba6d558" alt="" />
-                    <img width={40} height={40} src="https://cdn.gather.town/v0/b/gather-town.appspot.com/o/images%2Favatars%2Favatar_29_dancing.png?alt=media&token=507cc40a-a280-4f83-9600-69836b64522b" alt="" />
-                    <img width={40} height={40} src="https://cdn.gather.town/v0/b/gather-town.appspot.com/o/images%2Favatars%2Favatar_32_dancing.png?alt=media&token=e7d9d5fa-b7bd-41d5-966e-817f147b63d7" alt="" />
+                    <img className=' animate-bounce' width={40} height={40} src="https://cdn.gather.town/v0/b/gather-town.appspot.com/o/images%2Favatars%2Favatar_19_dancing.png?alt=media&token=03c3e96f-9148-42f9-a667-e8aeeba6d558" alt="" />
+                    <img className=' animate-bounce' width={40} height={40} src="https://cdn.gather.town/v0/b/gather-town.appspot.com/o/images%2Favatars%2Favatar_29_dancing.png?alt=media&token=507cc40a-a280-4f83-9600-69836b64522b" alt="" />
+                    <img className=' animate-bounce' width={40} height={40} src="https://cdn.gather.town/v0/b/gather-town.appspot.com/o/images%2Favatars%2Favatar_32_dancing.png?alt=media&token=e7d9d5fa-b7bd-41d5-966e-817f147b63d7" alt="" />
                 </div>
                 <h1 className='text-[22px] mt-2'>Welcome to Gather</h1>
                 <div className='w-[80%] bg-black rounded-xl h-[1px] mt-2'></div>
@@ -94,8 +94,8 @@ const SignUp = () => {
                     </div>
                         <p className='text-[20px] mt-3 mb-3'>Type</p>
                     <div className='w-full flex justify-center items-center gap-4 mb-2'>
-                        <button className={`w-[80px] h-[40px] border ${type === "admin" ? "bg-green-700 text-white" : "text-black"}  bg-transparent border-gray-600 p-2 rounded-xl flex justify-center items-center `} onClick={()=> setType("admin")}>Admin</button>
-                        <button className={`w-[80px] h-[40px] border ${type === "user" ? "bg-green-700 text-white" : "text-black"} bg-transparent border-gray-600 p-2 rounded-xl flex justify-center items-center `} onClick={()=> setType("user")}>user</button>
+                        <button className={`w-[80px] h-[40px] border ${type == "admin" ? "border-2 border-green-600" : "text-black"}  bg-transparent border-gray-600 p-2 rounded-xl flex justify-center items-center `} onClick={()=> setType("admin")}>Admin</button>
+                        <button className={`w-[80px] h-[40px] border ${type == "user" ? "border-2 border-green-600" : "text-black"} bg-transparent border-gray-600 p-2 rounded-xl flex justify-center items-center `} onClick={()=> setType("user")}>user</button>
                     </div>
                 </div>
                 {
@@ -105,7 +105,11 @@ const SignUp = () => {
                     <button className='w-[80%] h-[40px] flex justify-center items-center bg-green-600 rounded-xl mt-4 text-white' onClick={handleSubmit}>Sign Up</button>
 
                 }
+                <p className='pt-2'>
+                    Already have an account? <span className='text-blue-600 cursor-pointer' onClick={()=> navigate("/signIn")}>Sign In</span>
+                </p>
             </div>
+
         </div>
     );
 };
