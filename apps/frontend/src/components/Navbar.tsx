@@ -57,7 +57,7 @@ const Navbar = () => {
             {/* buttons  */}
             <div className=" flex gap-4">
                 <Button text="Sign Up" size="lg" color="black" classname="cursor-pointer " onClick={handleSignUp} />
-                <Button text="Sign In" size="lg" color="white" classname="cursor-pointer bg-green-600" onClick={handleSignIn} />
+                <Button text="Sign In" size="lg" color="black" classname="cursor-pointer " onClick={handleSignIn} />
             </div>
         </div>
 

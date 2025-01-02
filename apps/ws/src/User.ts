@@ -223,7 +223,6 @@ function setupWebSocketServer(wss: WebSocketServer) {
               decoded.userId
             );
             break;
-
           case "movement":
             const { x, y, direction } = message.payload;
             const existingUser2 = userManager.findUserByWebSocket(ws);
@@ -413,13 +412,14 @@ function calculateSpawnPosition(
   let attempts = 0;
   const maxAttempts = width * height; // Prevent infinite loop
 
+  //  runn till when no empty position are found other than occupied position 
   do {
     x = Math.floor(Math.random() * width);
     y = Math.floor(Math.random() * height);
 
     attempts++;
 
-    // Prevent infinite loop if no positions are available
+    // Prevent infinite loop if no positions are available like outside the grid of 4*4 then return 0 
     if (attempts > maxAttempts) {
       console.warn(
         `Could not find unoccupied position after ${maxAttempts} attempts`
