@@ -1,8 +1,5 @@
-import React, {  useEffect, useRef, useState } from "react";
-import {
-  useNavigate,
-  useParams,
-} from "react-router-dom";
+import React, { useEffect, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import { useRecoilState } from "recoil";
 import { userState } from "../store/userAtom";
@@ -36,7 +33,6 @@ interface UserPositionInfo {
   peerId?: string;
   Avatar?: string;
 }
-
 
 // Main Space Component
 const Space = () => {
@@ -88,7 +84,6 @@ const Space = () => {
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef(null);
 
-
   const peerInstanceRef = useRef<Peer | null>(null);
   const [peerId, setPeerId] = useState("");
   const [isInitialized, setIsInitialized] = useState(false);
@@ -96,7 +91,7 @@ const Space = () => {
   const [showOtheruser, setshowOtheruser] = useState(false);
   const [activeConnection, setActiveConnection] = useState<MediaConnection>();
 
-  const [activeCall, setActiveCall] = useState(null)
+  const [activeCall, setActiveCall] = useState(null);
 
   useEffect(() => {
     // Cleanup function to close existing connections
@@ -108,7 +103,7 @@ const Space = () => {
     };
   }, []);
 
-  // peer for video 
+  // peer for video
   useEffect(() => {
     if (!peerInstanceRef.current) {
       const peer = new Peer();
@@ -145,7 +140,7 @@ const Space = () => {
           console.log("answered the stream", stream);
 
           call.on("stream", (remoteStream) => {
-            setshowOtheruser(true)
+            setshowOtheruser(true);
             if (remoteVideoRef.current) {
               remoteVideoRef.current.srcObject = remoteStream;
             }
@@ -179,8 +174,8 @@ const Space = () => {
         { headers: { authorization: localStorage.getItem("token") } }
       );
       console.log(res.data.user);
-      setCurrUserId(res.data.user.id);
-      setUser(res.data.user);
+      await setUser(res.data.user);
+      console.log(user);
     };
 
     const fetchSpaceDetails = async () => {
@@ -215,107 +210,99 @@ const Space = () => {
   }, []);
 
   // WebSocket setup
-  const { sendMessage } = useWebSocket(
-    `ws://localhost:3001`,
-    {
-      onOpen: () => {
-        console.log("WebSocket connection established");
+  const { sendMessage } = useWebSocket(`ws://localhost:3001`, {
+    onOpen: () => {
+      console.log("WebSocket connection established");
 
-        // Wait for Peer ID before sending the 'join' message
-        if (isInitialized && peerId) {
-          sendJoinMessage();
-        }
-      },
-      onClose: () => {
-        console.log("WebSocket connection closed, retrying...");
-      },
-      onMessage: async(event) => {
-        const message = JSON.parse(event.data);
+      // Wait for Peer ID before sending the 'join' message
+      if (isInitialized && peerId) {
+        sendJoinMessage();
+      }
+    },
+    onClose: () => {
+      console.log("WebSocket connection closed, retrying...");
+    },
+    onMessage: async (event) => {
+      const message = JSON.parse(event.data);
 
-        switch (message.type) {
-          case "space-joined":
-            // Set the current user's position
-            setUserPosition(message.payload.spawn);
+      switch (message.type) {
+        case "space-joined":
+          // Set the current user's position
+          setUserPosition(message.payload.spawn);
 
-            // Set other users' positions, explicitly excluding the current user
-            setUsersPositions((prev) => {
-              const updatedPositions: { [key: string]: UserPositionInfo } = {};
+          // Set other users' positions, explicitly excluding the current user
+          setUsersPositions((prev) => {
+            const updatedPositions: { [key: string]: UserPositionInfo } = {};
 
-              message.payload.newUserPositions.forEach((userPos) => {
-                // Only add other users, not the current user
-                if (userPos.userId !== user?.id) {
-                  updatedPositions[userPos.userId] = {
-                    x: userPos.position.x,
-                    y: userPos.position.y,
-                    direction: AvatarDirection.Front,
-                    userId: userPos.userId,
-                    name: userPos.name,
-                    peerId: userPos.peerId,
-                  };
-                }
-              });
-
-              return updatedPositions;
-            });
-            break;
-
-          case "user-joined":
-            // Only add the new user if it's not the current user
-            if (message.payload.userId !== user?.id) {
-              setUsersPositions((prev) => ({
-                ...prev,
-                [message.payload.userId]: {
-                  x: message.payload.position.x,
-                  y: message.payload.position.y,
+            message.payload.newUserPositions.forEach((userPos) => {
+              // Only add other users, not the current user
+              if (userPos.userId !== user?.id) {
+                updatedPositions[userPos.userId] = {
+                  x: userPos.position.x,
+                  y: userPos.position.y,
                   direction: AvatarDirection.Front,
-                  userId: message.payload.userId,
-                  name: message.payload.name,
-                  peerId: message.payload.peerId,
-                },
-              }));
-            }
-            break;
-          case "movement":
-            
-            await setUsersPositions((prev) => ({
+                  userId: userPos.userId,
+                  name: userPos.name,
+                  peerId: userPos.peerId,
+                };
+              }
+            });
+
+            return updatedPositions;
+          });
+          break;
+
+        case "user-joined":
+          // Only add the new user if it's not the current user
+          if (message.payload.userId !== user?.id) {
+            setUsersPositions((prev) => ({
               ...prev,
               [message.payload.userId]: {
                 x: message.payload.position.x,
                 y: message.payload.position.y,
-                direction: message.payload.direction,
+                direction: AvatarDirection.Front,
                 userId: message.payload.userId,
-                name: message.payload.name, // Add name
+                name: message.payload.name,
                 peerId: message.payload.peerId,
               },
             }));
-            const facingUsers = checkFacingUsers(
-              userPosition,
-              usersPositions
-            );
-            console.log(facingUsers.length);
-          
+          }
+          break;
+        case "movement":
+          await setUsersPositions((prev) => ({
+            ...prev,
+            [message.payload.userId]: {
+              x: message.payload.position.x,
+              y: message.payload.position.y,
+              direction: message.payload.direction,
+              userId: message.payload.userId,
+              name: message.payload.name, // Add name
+              peerId: message.payload.peerId,
+            },
+          }));
+          const facingUsers = checkFacingUsers(userPosition, usersPositions);
+          console.log(facingUsers.length);
 
-            break;
+          break;
 
-          case "chat":
-            setChatMessages((prev) => [...prev, message.payload]);
-            break;
+        case "chat":
+          setChatMessages((prev) => [...prev, message.payload]);
+          break;
 
-          case "user-left":
-            setUsersPositions((prev) => {
-              const updatedPositions = { ...prev };
-              delete updatedPositions[message.payload.userId];
-              return updatedPositions;
-            });
-            break;
+        case "user-left":
+          setUsersPositions((prev) => {
+            const updatedPositions = { ...prev };
+            delete updatedPositions[message.payload.userId];
+            return updatedPositions;
+          });
+          break;
 
-          default:
-            console.warn("Unhandled message type:", message.type);
-        }
-      },
-      shouldReconnect: () => true, // Enable reconnection
-    }
-  );
+        default:
+          console.warn("Unhandled message type:", message.type);
+      }
+    },
+    shouldReconnect: () => true, // Enable reconnection
+  });
 
   // Helper function to send the 'join' message
   const sendJoinMessage = () => {
@@ -553,7 +540,7 @@ const Space = () => {
     setUserDirection(newDirection);
 
     // Send movement data
-     sendMessage(
+    sendMessage(
       JSON.stringify({
         type: "movement",
         payload: {
@@ -576,7 +563,7 @@ const Space = () => {
       }
     } else if (activeCall) {
       endCall();
-    } 
+    }
   };
   useEffect(() => {
     const videoAvailable = navigator.mediaDevices
@@ -617,7 +604,7 @@ const Space = () => {
       }
     };
     checkVideo();
-  },[]);
+  }, []);
 
   const MAX_RETRIES = 2; // Maximum retry attempts
   const RETRY_INTERVAL = 1000; // Time (ms) between retries
@@ -678,84 +665,134 @@ const Space = () => {
       setActiveConnection(conn);
 
       conn.on("open", async () => {
-      // Get local media stream
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        // Get local media stream
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
-      // Set the local stream to local video element
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
-
-      // Make the call to the remote Peer ID
-      const call = peerInstanceRef.current.call(to, stream);
-
-      // Listen for the remote stream
-      call.on("stream", (remoteStream) => {
-        console.log("Received remote stream");
-        setshowOtheruser(true);
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = remoteStream;
+        // Set the local stream to local video element
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
         }
-      });
-      call.on("close", () => {
-        endCall();
-      });
 
-      // Handle call errors
-      call.on("error", (err) => {
-        console.error("Call error:", err);
-      });
+        // Make the call to the remote Peer ID
+        const call = peerInstanceRef.current.call(to, stream);
 
-      })
+        // Listen for the remote stream
+        call.on("stream", (remoteStream) => {
+          console.log("Received remote stream");
+          setshowOtheruser(true);
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = remoteStream;
+          }
+        });
+        call.on("close", () => {
+          endCall();
+        });
+
+        // Handle call errors
+        call.on("error", (err) => {
+          console.error("Call error:", err);
+        });
+      });
 
       conn.on("data", (data) => {
         if (data.type === "end-call") {
           endCall();
         }
       });
-    }  catch (error) {
+    } catch (error) {
       console.error("Error in startCall:", error);
       endCall();
     }
   };
 
+  // Add this effect to constantly check facing status after each movement
+  useEffect(() => {
+    // Only check if we have a position and there are other users
+    if (userPosition && Object.keys(usersPositions).length > 0) {
+      const facingUsers = checkFacingUsers(
+        { ...userPosition, direction: userDirection, userId: user.id },
+        usersPositions
+      );
+
+      // If we're facing users and don't have an active call, start one
+      if (facingUsers.length > 0 && !activeCall) {
+        startCall(peerId, facingUsers[0].peerId);
+      }
+      // If we're not facing any users but have an active call, end it
+      else if (facingUsers.length === 0 && activeCall) {
+        endCall();
+      }
+    }
+  }, [userPosition, userDirection, usersPositions]);
+
+  // Modify the endCall function to be more robust
   const endCall = async () => {
-   // Stop remote video stream
-   const remoteStream = remoteVideoRef.current?.srcObject;
-   if (remoteStream) {
-     remoteStream.getTracks().forEach(track => {
-       track.stop();
-       console.log("Stopped remote track:", track.kind);
-     });
-     remoteVideoRef.current.srcObject = null;
-   }
+    console.log("Ending call");
 
-   // Send end-call signal to peer if we have an active connection
-   if (activeConnection && activeConnection.open) {
-     activeConnection.send({ type: "end-call" });
-   }
+    // Stop local video stream
+    const localStream = localVideoRef.current?.srcObject;
+    if (localStream) {
+      localStream.getTracks().forEach((track) => {
+        track.stop();
+        console.log("Stopped local track:", track.kind);
+      });
+      localVideoRef.current.srcObject = null;
+    }
 
-   // Close the call
-   if (activeCall) {
-     activeCall.close();
-     setActiveCall(null);
-   }
+    // Stop remote video stream
+    const remoteStream = remoteVideoRef.current?.srcObject;
+    if (remoteStream) {
+      remoteStream.getTracks().forEach((track) => {
+        track.stop();
+        console.log("Stopped remote track:", track.kind);
+      });
+      remoteVideoRef.current.srcObject = null;
+    }
 
-   // Close the data connection
-   if (activeConnection) {
-     activeConnection.close();
-     setActiveConnection(null);
-   }
+    // Send end-call signal to peer if we have an active connection
+    if (activeConnection && activeConnection.open) {
+      try {
+        activeConnection.send({ type: "end-call" });
+        console.log("Sent end-call signal to peer");
+      } catch (error) {
+        console.error("Error sending end-call signal:", error);
+      }
+    }
 
-   setshowOtheruser(false);
- };
-  
+    // Close the call
+    if (activeCall) {
+      try {
+        activeCall.close();
+        console.log("Closed active call");
+      } catch (error) {
+        console.error("Error closing call:", error);
+      }
+      setActiveCall(null);
+    }
+
+    // Close the data connection
+    if (activeConnection) {
+      try {
+        activeConnection.close();
+        console.log("Closed active connection");
+      } catch (error) {
+        console.error("Error closing connection:", error);
+      }
+      setActiveConnection(null);
+    }
+
+    setshowOtheruser(false);
+  };
 
   /// ----------------------------------------//
 
   // Render loading state if space details not loaded
   if (!spaceDetails) {
-    return <div className="w-full h-screen flex justify-center items-center text-xl font-semibold" >Loading space details...</div>;
+    return (
+      <div className="w-full h-screen flex justify-center items-center text-xl font-semibold">
+        Loading space details...
+      </div>
+    );
   }
 
   const { dimensions, elements } = spaceDetails;
@@ -784,7 +821,9 @@ const Space = () => {
           </h1>
         </div>
         <div className="flex justfy-between items-center gap-4">
-          <div className={`rounded-xl w-[187px] h-[140px] bg-gray-300 ${!showOtheruser && "hidden"}`}>
+          <div
+            className={`rounded-xl w-[187px] h-[140px] bg-gray-300 ${!showOtheruser && "hidden"}`}
+          >
             <video
               className="rounded-xl"
               ref={remoteVideoRef}
@@ -864,7 +903,9 @@ const Space = () => {
                         transform: "translate(-50%, -50%)",
                       }}
                     >
-                      <div className="pl-2 pr-2 p-1 text-white bg-black rounded-xl absolute right-[0.2rem] -top-[2.5rem] opacity-[0.7]">You</div>
+                      <div className="pl-2 pr-2 p-1 text-white bg-black rounded-xl absolute right-[0.2rem] -top-[2.5rem] opacity-[0.7]">
+                        You
+                      </div>
                       <AnimatedAvatar
                         direction={userDirection}
                         isMoving={Object.values(usersPositions).some(
@@ -877,7 +918,6 @@ const Space = () => {
 
                   {/* Other Users' Avatars */}
                   {Object.entries(usersPositions).map(([userId, position]) => {
-
                     if (
                       position.x === x &&
                       position.y === y &&
@@ -893,7 +933,9 @@ const Space = () => {
                             transform: "translate(-50%, -50%)",
                           }}
                         >
-                          <div className="pl-2 pr-2 p-1 text-white bg-black rounded-xl absolute right-[0.2rem] -top-[2.5rem] opacity-[0.7]">{position.name}</div>
+                          <div className="pl-2 pr-2 p-1 text-white bg-black rounded-xl absolute right-[0.2rem] -top-[2.5rem] opacity-[0.7]">
+                            {position.name}
+                          </div>
                           <AnimatedAvatar2
                             direction={position.direction}
                             isMoving={true}
@@ -994,14 +1036,14 @@ const Space = () => {
             style={{ backgroundColor: "rgb(117 126 197)" }}
           >
             <div className="rounded-xl w-[50px] flex items-center justify-center ">
-                <img
-                  style={{ borderRadius: "10px" }}
-                  width={40}
-                  height={30}
-                  src="data:image/jpeg;base64,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"
-                  alt=""
-                />
-              </div>
+              <img
+                style={{ borderRadius: "10px" }}
+                width={40}
+                height={30}
+                src="data:image/jpeg;base64,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"
+                alt=""
+              />
+            </div>
             {/* {isAvailable ? (
               <div className=" w-[60px] flex items-center justify-center ">
                 <video

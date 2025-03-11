@@ -323,18 +323,18 @@ const DashNav = () => {
             <SpaceCreation onClick={() => setCreateSpace((prev) => !prev)} />
           </>
         )}
-         <button
-              className="bg-green-600 w-[100%] rounded-xl p-2"
-              onClick={() => setCreateSpace((prev) => !prev)}
-            >
-              Create Space
-            </button>
-            <button
-              className="bg-green-600 w-[100%] rounded-xl p-2"
-              onClick={() => setOpenJoinSpace(true)}
-            >
-              Join Space
-            </button>
+        <button
+          className="bg-green-600 w-[100%] rounded-xl p-2"
+          onClick={() => setCreateSpace((prev) => !prev)}
+        >
+          Create Space
+        </button>
+        <button
+          className="bg-green-600 w-[100%] rounded-xl p-2"
+          onClick={() => setOpenJoinSpace(true)}
+        >
+          Join Space
+        </button>
         {user.role === "Admin" && (
           <div className="w-[250%] flex gap-4 mr-2">
             <button

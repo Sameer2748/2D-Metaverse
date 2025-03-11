@@ -31,9 +31,9 @@ interface MapElement {
 interface Map {
   id: string;
   name: string;
-  width:number,
-  height:number,
-  thubmnail:string,
+  width: number;
+  height: number;
+  thubmnail: string;
 }
 
 interface Space {
@@ -161,7 +161,7 @@ export const ElementCreation = ({ onClick }: ElementType) => {
         { headers: { Authorization: `${localStorage.getItem("token")}` } }
       );
       console.log(res.data);
-      setImageUrl("")
+      setImageUrl("");
       toast("element created successfully");
     } catch (error) {
       console.error("Element creation failed", error);
@@ -292,7 +292,6 @@ const Grid = ({
 }) => {
   const [width, height] = mapForm.dimensions.split("x").map(Number);
   console.log(elements);
-  
 
   return (
     <div
@@ -349,7 +348,6 @@ export const MapCreation = ({ onClick }: { onClick: () => void }) => {
       const response = await axios.get("http://localhost:3000/api/v1/elements");
       setAvailableElements(response.data.elements);
       console.log(response.data.elements);
-      
     };
     fetchElements();
   }, []);
@@ -366,7 +364,13 @@ export const MapCreation = ({ onClick }: { onClick: () => void }) => {
       // Otherwise, add the selected element to that position
       setElements((prevElements) => [
         ...prevElements,
-        { x, y, element: selectedElement, elementId: selectedElement.id, static: selectedElement.static },
+        {
+          x,
+          y,
+          element: selectedElement,
+          elementId: selectedElement.id,
+          static: selectedElement.static,
+        },
       ]);
     }
   };
@@ -384,7 +388,7 @@ export const MapCreation = ({ onClick }: { onClick: () => void }) => {
   const handleCreateMap = async () => {
     try {
       console.log(elements);
-      
+
       const res = await axios.post(
         "http://localhost:3000/api/v1/admin/map",
         {
@@ -395,7 +399,7 @@ export const MapCreation = ({ onClick }: { onClick: () => void }) => {
             elementId: el.element.id,
             x: el.x,
             y: el.y,
-            static: el.static
+            static: el.static,
           })),
         },
         {
@@ -454,13 +458,12 @@ export const MapCreation = ({ onClick }: { onClick: () => void }) => {
 export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
   const [maps, setMaps] = useState<Map[]>([]);
   const [selectedMap, setSelectedMap] = useState(maps[0]);
-  const [name ,setName] = useState("");
+  const [name, setName] = useState("");
   const [step, setStep] = useState(0);
-  const [selected , setSelected] = useState(0);
+  const [selected, setSelected] = useState(0);
   const [loading, setLoading] = useState(false);
-  const dimensions = `${selectedMap?.width}x${selectedMap?.height}`
+  const dimensions = `${selectedMap?.width}x${selectedMap?.height}`;
   const [spaces, setSpaces] = useRecoilState(spaceState);
-  
 
   useEffect(() => {
     const fetchMaps = async () => {
@@ -474,12 +477,11 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
 
   const handleCreateSpace = async () => {
     console.log(name, dimensions, selectedMap);
-    if(name === ""){
+    if (name === "") {
       toast("Please enter a name for the space");
       return;
     }
-    
-    
+
     try {
       setLoading(true);
       const newSpace = await axios.post(
@@ -488,7 +490,8 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
           name,
           dimensions,
           mapId: selectedMap.id,
-          thumbnail: "https://cdn.gather.town/v0/b/gather-town.appspot.com/o/remote-work%2Foffice-configuration%2Fscreenshots%2FSOURCE_SPACE_RW_6.png?alt=media"
+          thumbnail:
+            "https://cdn.gather.town/v0/b/gather-town.appspot.com/o/remote-work%2Foffice-configuration%2Fscreenshots%2FSOURCE_SPACE_RW_6.png?alt=media",
         },
         {
           headers: {
@@ -497,12 +500,12 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
         }
       );
       setSpaces((prevSpaces) => [...prevSpaces, newSpace.data.space]);
-      setLoading(false)
+      setLoading(false);
       console.log(newSpace.data);
-      onClick()
+      onClick();
       toast("Space created successfully!");
     } catch (error) {
-      setLoading(false)
+      setLoading(false);
       console.error("Space creation failed", error);
     }
   };
@@ -549,11 +552,14 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
                   <div className="w-full h-full p-2 mt-6 gap-2 ml-2">
                     <h1 className=" mb-2 text-xl pl-1 ">Map theme</h1>
                     <div className="w-full h-full grid grid-cols-12 gap-4 items-center justify-center">
-                         <div onClick={()=> setSelected(0)}  className={`cursor-pointer col-span-6 w-[120px] h-[80px] flex justify-center items-center bg-[#545c8f] border border-gray-600 rounded-xl hover ${selected ===0 && "border-2 border-green-600"}`}>
-                         <span className="">🌳</span>
-                          <p>Courtyard</p>  
-                         </div>
-                         {/* <div onClick={()=> setSelected(1)}  className={`cursor-pointer col-span-6 w-[120px] h-[80px] flex justify-center items-center bg-[#545c8f] border border-gray-600 rounded-xl ${selected ===1 && "border-2 border-green-600"}`}>
+                      <div
+                        onClick={() => setSelected(0)}
+                        className={`cursor-pointer col-span-6 w-[120px] h-[80px] flex justify-center items-center bg-[#545c8f] border border-gray-600 rounded-xl hover ${selected === 0 && "border-2 border-green-600"}`}
+                      >
+                        <span className="">🌳</span>
+                        <p>Courtyard</p>
+                      </div>
+                      {/* <div onClick={()=> setSelected(1)}  className={`cursor-pointer col-span-6 w-[120px] h-[80px] flex justify-center items-center bg-[#545c8f] border border-gray-600 rounded-xl ${selected ===1 && "border-2 border-green-600"}`}>
                          <span className="">🏙️</span>
                           <p>Courtyard</p>  
                          </div>
@@ -574,8 +580,8 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
               <Button
                 text="Back"
                 size="xl"
-                color="white"
-                classname="bg-[#545c8f] cursor-pointer "
+                color="black"
+                classname=" cursor-pointer "
                 onClick={onClick}
               />
               <Button
@@ -598,7 +604,9 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
         >
           <div className="w-[90%] h-[90%] ">
             <div className="flex relative justify-center flex-col gap-2 h-[60px] w-full">
-              <h1 className="font-bold text-xl">Create a new office space for your team</h1>
+              <h1 className="font-bold text-xl">
+                Create a new office space for your team
+              </h1>
               <p
                 className="text-[32px] text-white absolute top-0 right-0 cursor-pointer"
                 onClick={onClick}
@@ -607,43 +615,43 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
               </p>
             </div>
             <div className="w-full  flex flex-col gap-2">
-              <p className="flex ">Space Name <p className="text-red-700">*</p></p>
-            <input
-                    type="text"
-                    onChange={(e) => {
-                      setName(e.target.value)
-                    }}
-                    className="bg-transparent border border-gray-500 text-white rounded-lg h-[50px] p-2 focus:outline-none focus:ring-0"
-                    placeholder="Enter your Space name"
-                  />
+              <p className="flex ">
+                Space Name <p className="text-red-700">*</p>
+              </p>
+              <input
+                type="text"
+                onChange={(e) => {
+                  setName(e.target.value);
+                }}
+                className="bg-transparent border border-gray-500 text-white rounded-lg h-[50px] p-2 focus:outline-none focus:ring-0"
+                placeholder="Enter your Space name"
+              />
             </div>
 
             <div className="w-full p-2 flex justify-between items-center mt-4">
               <Button
                 text="Back"
                 size="xl"
-                color="white"
-                classname="bg-[#545c8f] cursor-pointer"
+                color="black"
+                classname=" cursor-pointer"
                 onClick={() => setStep(0)}
               />
-              {
-                name.length ===0  ?(
-                  <Button
-                    text="Create Space"
-                    size="xl"
-                    color="black"
-                    classname="bg-[#06D6A0] p-2 w-auto"
-                  />
-                ):(
-                  <Button
-                    text={loading ? "Creating...": "Create Space"}
-                    size="xl"
-                    color="black"
-                    classname="bg-[#06D6A0] p-2 w-auto cursor-pointer"
-                    onClick={handleCreateSpace}
-                  />
-                )
-              }
+              {name.length === 0 ? (
+                <Button
+                  text="Create Space"
+                  size="xl"
+                  color="black"
+                  classname="bg-[#06D6A0] p-2 w-auto"
+                />
+              ) : (
+                <Button
+                  text={loading ? "Creating..." : "Create Space"}
+                  size="xl"
+                  color="black"
+                  classname="bg-[#06D6A0] p-2 w-auto cursor-pointer"
+                  onClick={handleCreateSpace}
+                />
+              )}
             </div>
           </div>
         </div>

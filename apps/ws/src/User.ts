@@ -11,6 +11,7 @@ interface User {
   position: { x: number; y: number };
   name: string;
   peerId: string;
+  isGuest?: boolean;
 }
 
 interface ChatMessage {
@@ -21,6 +22,12 @@ interface ChatMessage {
     timestamp: number;
     username?: string;
   };
+}
+
+interface GuestTokenPayload {
+  userId: string;
+  isGuest: boolean;
+  guestName: string;
 }
 
 class UserManager {
@@ -47,6 +54,7 @@ class UserManager {
     }
     this.spaceUsers.get(user.spaceId)?.add(user.id);
   }
+
   removeUser(userId: string) {
     const user = this.users.get(userId);
     if (user) {
@@ -56,9 +64,13 @@ class UserManager {
     }
   }
 
-  getUsersInSpace(
-    spaceId: string
-  ): { userId: string; position: { x: number; y: number }; peerId: string }[] {
+  getUsersInSpace(spaceId: string): {
+    userId: string;
+    position: { x: number; y: number };
+    peerId: string;
+    name: string;
+    isGuest?: boolean;
+  }[] {
     const userIds = this.spaceUsers.get(spaceId) || new Set();
     return Array.from(userIds)
       .map((id) => this.users.get(id))
@@ -68,12 +80,14 @@ class UserManager {
         position: user!.position,
         name: user!.name,
         peerId: user!.peerId,
+        isGuest: user!.isGuest,
       }));
   }
 
   findUserByWebSocket(ws: WebSocket): User | undefined {
     return Array.from(this.users.values()).find((u) => u.ws === ws);
   }
+
   findUserByUserId(userId: string, spaceId: string): User | undefined {
     return Array.from(this.users.values()).find(
       (user) => user.userId === userId && user.spaceId === spaceId
@@ -96,7 +110,6 @@ class UserManager {
     );
 
     users.forEach((user) => {
-      //   console.log(JSON.stringify(message));
       user.ws.send(JSON.stringify(message));
     });
   }
@@ -108,6 +121,19 @@ function generateUniqueId(): string {
   return Math.random().toString(36).substring(2, 12);
 }
 
+async function fetchSpace(spaceId: string) {
+  return await client.space.findUnique({
+    where: { id: spaceId },
+    include: {
+      elements: {
+        include: {
+          element: true,
+        },
+      },
+    },
+  });
+}
+
 function setupWebSocketServer(wss: WebSocketServer) {
   wss.on("connection", (ws) => {
     ws.on("message", async (data) => {
@@ -116,26 +142,54 @@ function setupWebSocketServer(wss: WebSocketServer) {
 
         switch (message.type) {
           case "join":
-            const { spaceId, token, peerId } = message.payload;
+            const { spaceId, token, peerId, isGuest, guestName } =
+              message.payload;
 
-            // Verify token
-            const decoded = jwt.verify(token, JWT_PASSWORD) as {
-              userId: string;
-            };
-            if (!decoded.userId) {
+            let userId: string;
+            let name: string;
+
+            if (isGuest) {
+              // Handle guest user
+              userId = `guest-${token}`; // Using the guest token as userId
+              name = guestName;
+            } else {
+              // Handle regular user
+              try {
+                const decoded = jwt.verify(token, JWT_PASSWORD) as {
+                  userId: string;
+                };
+                if (!decoded.userId) {
+                  ws.close();
+                  return;
+                }
+                userId = decoded.userId;
+
+                // Fetch user details from database
+                const userData = await client.user.findUnique({
+                  where: { id: userId },
+                });
+                name = userData?.name || "Anonymous";
+              } catch (error) {
+                console.error("Token verification failed:", error);
+                ws.close();
+                return;
+              }
+            }
+
+            // Fetch space with elements
+            const space = await fetchSpace(spaceId);
+            if (!space) {
               ws.close();
               return;
             }
 
-            // Find and remove any existing connections for this user in this space
+            // Find and remove existing connections
             const existingConnections = Array.from(
               userManager.users.values()
             ).filter(
-              (user) =>
-                user.userId === decoded.userId && user.spaceId === spaceId
+              (user) => user.userId === userId && user.spaceId === spaceId
             );
 
-            // Close and remove existing connections
             existingConnections.forEach((existingUser) => {
               try {
                 existingUser.ws.close();
@@ -145,105 +199,72 @@ function setupWebSocketServer(wss: WebSocketServer) {
               userManager.removeUser(existingUser.id);
             });
 
-            // Fetch space with elements
-            const space = await client.space.findUnique({
-              where: { id: spaceId },
-              include: {
-                elements: {
-                  include: {
-                    element: true,
-                  },
-                },
-              },
-            });
-
-            if (!space) {
-              ws.close();
-              return;
-            }
-
             // Generate spawn position
             const spawnPosition = calculateSpawnPosition(spaceId, space);
 
-            // Fetch user details to get username
-            const userData = await client.user.findUnique({
-              where: { id: decoded.userId },
-            });
-            // console.log(userData);
-
-            // Create user
+            // Create user object
             const user: User = {
               id: generateUniqueId(),
-              userId: decoded.userId,
+              userId,
               spaceId,
               ws,
               position: spawnPosition,
-              name: userData?.name,
+              name,
               peerId,
+              isGuest: isGuest || false,
             };
 
             userManager.addUser(user);
 
-            const allusers = userManager.getUsersInSpace(spaceId);
-            console.log("allusers", allusers);
+            const allUsers = userManager.getUsersInSpace(spaceId);
 
-            // Send spawn position to the joining user
-            // In the "join" case
+            // Send join confirmation
             ws.send(
               JSON.stringify({
                 type: "space-joined",
                 payload: {
                   spawn: spawnPosition,
-                  newUserPositions: allusers.map((user) => ({
+                  newUserPositions: allUsers.map((user) => ({
                     userId: user.userId,
                     position: user.position,
                     name: user.name,
                     peerId: user.peerId,
+                    isGuest: user.isGuest,
                   })),
-                  userId: decoded.userId,
-                  name: userData?.name,
+                  userId,
+                  name,
                   peerId,
+                  isGuest,
                 },
               })
             );
 
-            // In the "user-joined" broadcast
+            // Broadcast new user to others
             userManager.broadcastToSpace(
               spaceId,
               {
                 type: "user-joined",
                 payload: {
-                  userId: decoded.userId,
+                  userId,
                   position: spawnPosition,
-                  name: userData?.name,
+                  name,
                   peerId,
+                  isGuest,
                 },
-                // Exclude the joining user from receiving their own join message
               },
-              decoded.userId
+              userId
             );
             break;
+
           case "movement":
             const { x, y, direction } = message.payload;
-            const existingUser2 = userManager.findUserByWebSocket(ws);
+            const movingUser = userManager.findUserByWebSocket(ws);
 
-            if (existingUser2) {
-              // Fetch space with elements
-              const space = await client.space.findUnique({
-                where: { id: existingUser2.spaceId },
-                include: {
-                  elements: {
-                    include: {
-                      element: true,
-                    },
-                  },
-                },
-              });
+            if (movingUser) {
+              const space = await fetchSpace(movingUser.spaceId);
 
               if (!space) {
-                console.error(
-                  `Space not found for id: ${existingUser2.spaceId}`
-                );
+                console.error(`Space not found for id: ${movingUser.spaceId}`);
                 return;
               }
 
@@ -271,11 +292,11 @@ function setupWebSocketServer(wss: WebSocketServer) {
 
               // Check for other users
               const usersInSpace = userManager.getUsersInSpace(
-                existingUser2.spaceId
+                movingUser.spaceId
               );
               const isOccupiedByUser = usersInSpace.some(
                 (user) =>
-                  user.userId !== existingUser2.userId &&
+                  user.userId !== movingUser.userId &&
                   user.position.x === x &&
                   user.position.y === y
               );
@@ -288,56 +309,48 @@ function setupWebSocketServer(wss: WebSocketServer) {
               }
 
               // Update user position
-              existingUser2.position = { x, y };
+              movingUser.position = { x, y };
 
-              // Broadcast movement to other users in the space, excluding the moving user
-              //   console.log(x,y , direction);
-
+              // Broadcast movement to other users
               userManager.broadcastToSpace(
-                existingUser2.spaceId,
+                movingUser.spaceId,
                 {
                   type: "movement",
                   payload: {
-                    userId: existingUser2.userId,
+                    userId: movingUser.userId,
                     position: { x, y },
-                    direction: direction,
-                    peerId: existingUser2.peerId,
-                    name: existingUser2.name, // Ensure name is sent
+                    direction,
+                    peerId: movingUser.peerId,
+                    name: movingUser.name,
+                    isGuest: movingUser.isGuest,
                   },
                 },
-                existingUser2.userId
+                movingUser.userId
               );
             }
             break;
+
           case "chat":
-            const existingUser = userManager.findUserByWebSocket(ws);
+            const chattingUser = userManager.findUserByWebSocket(ws);
 
-            if (existingUser) {
-              // Fetch user details to get username
-              const userData = await client.user.findUnique({
-                where: { id: existingUser.userId },
-              });
-
-              // Validate message payload
+            if (chattingUser) {
               if (!message.payload || !message.payload.message) {
                 console.warn("Invalid chat message");
                 return;
               }
 
-              // Create chat message object
               const chatMessage: ChatMessage = {
                 type: "chat",
                 payload: {
-                  userId: existingUser.userId,
+                  userId: chattingUser.userId,
                   message: message.payload.message,
                   timestamp: Date.now(),
-                  username: userData?.username,
+                  username: chattingUser.name,
                 },
               };
 
-              // Broadcast chat message to all users in the space
               userManager.broadcastChatMessage(
-                existingUser.spaceId,
+                chattingUser.spaceId,
                 chatMessage
               );
             }
@@ -348,6 +361,7 @@ function setupWebSocketServer(wss: WebSocketServer) {
         ws.close();
       }
     });
+
     ws.on("error", () => {
       const user = userManager.findUserByWebSocket(ws);
       if (user) {
@@ -358,68 +372,59 @@ function setupWebSocketServer(wss: WebSocketServer) {
     ws.on("close", () => {
       const user = userManager.findUserByWebSocket(ws);
       if (user) {
-        // Broadcast user left to other users in the space
+        // Broadcast user left to others
         userManager.broadcastToSpace(user.spaceId, {
           type: "user-left",
           payload: {
             userId: user.userId,
+            isGuest: user.isGuest,
           },
         });
 
-        // Remove user
         userManager.removeUser(user.id);
       }
     });
   });
 }
 
-// Update calculateSpawnPosition to work with the new space object structure
 function calculateSpawnPosition(
   spaceId: string,
   space: any
 ): { x: number; y: number } {
-  // Add null/undefined check for space
   if (!space) {
     console.error(`No space found for spaceId: ${spaceId}`);
     return { x: 0, y: 0 };
   }
 
-  // Use width and height properties directly
   const width = space.width;
   const height = space.height;
 
-  // Validate dimensions
   if (!width || !height || width <= 0 || height <= 0) {
     console.error(`Invalid space dimensions: width=${width}, height=${height}`);
     return { x: 0, y: 0 };
   }
 
-  // Get existing users in the space
   const usersInSpace = userManager.getUsersInSpace(spaceId);
   const occupiedPositions = new Set(
     usersInSpace.map((u) => `${u.position.x},${u.position.y}`)
   );
 
-  // Add static elements to occupied positions
   const staticElements = space.elements
     .filter((el: any) => el.element.static)
     .map((el: any) => `${el.x},${el.y}`);
 
   staticElements.forEach((pos: string) => occupiedPositions.add(pos));
 
-  // Find an unoccupied position
   let x, y;
   let attempts = 0;
-  const maxAttempts = width * height; // Prevent infinite loop
+  const maxAttempts = width * height;
 
-  //  runn till when no empty position are found other than occupied position 
   do {
     x = Math.floor(Math.random() * width);
     y = Math.floor(Math.random() * height);
 
     attempts++;
 
-    // Prevent infinite loop if no positions are available like outside the grid of 4*4 then return 0 
     if (attempts > maxAttempts) {
       console.warn(
         `Could not find unoccupied position after ${maxAttempts} attempts`
