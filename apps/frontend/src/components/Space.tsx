@@ -7,6 +7,7 @@ import useWebSocket from "react-use-websocket";
 import Peer, { MediaConnection } from "peerjs";
 import { FaSignOutAlt } from "react-icons/fa";
 import { AnimatedAvatar, AnimatedAvatar2 } from "./Avatars";
+import { BsChatLeftText } from "react-icons/bs";
 
 // Avatar Direction Enum
 enum AvatarDirection {
@@ -32,6 +33,11 @@ interface UserPositionInfo {
   name?: string;
   peerId?: string;
   Avatar?: string;
+}
+
+interface MediaState {
+  audio: boolean;
+  video: boolean;
 }
 
 // Main Space Component
@@ -81,17 +87,18 @@ const Space = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [hoveredName, setHoveredName] = useState(false);
   const [spaceDetailss, setSpaceDetailss] = useState({});
-  const localVideoRef = useRef<HTMLVideoElement | null>(null);
-  const remoteVideoRef = useRef(null);
 
   const peerInstanceRef = useRef<Peer | null>(null);
   const [peerId, setPeerId] = useState("");
   const [isInitialized, setIsInitialized] = useState(false);
   const videoref = useRef();
   const [showOtheruser, setshowOtheruser] = useState(false);
-  const [activeConnection, setActiveConnection] = useState<MediaConnection>();
 
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRef = useRef(null);
   const [activeCall, setActiveCall] = useState(null);
+  const [showChat, setShowChat] = useState(false);
+  const [activeConnection, setActiveConnection] = useState<MediaConnection>();
 
   useEffect(() => {
     // Cleanup function to close existing connections
@@ -103,68 +110,121 @@ const Space = () => {
     };
   }, []);
 
-  // peer for video
   useEffect(() => {
-    if (!peerInstanceRef.current) {
-      const peer = new Peer();
+    // Declare these variables in the outer scope so they're accessible in cleanup
+    let isDragging = false;
+    let offsetX, offsetY;
+    let draggableDiv = null;
 
-      peer.on("open", (id) => {
-        console.log("Peer ID:", id);
-        setPeerId(id);
-        peerInstanceRef.current = peer; // Assign to ref
-        setIsInitialized(true); // Mark Peer as initialized
-      });
-      peer.on("connection", (conn) => {
-        conn.on("data", (data) => {
-          if (data.type === "end-call") {
-            endCall();
-          }
-        });
-      });
+    // Define event handlers outside so they can be referenced in cleanup
+    function startDrag(e) {
+      isDragging = true;
 
-      peer.on("call", async (call) => {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: true,
-          });
+      // Calculate the offset of the mouse pointer relative to the div
+      const rect = draggableDiv.getBoundingClientRect();
+      offsetX = e.clientX - rect.left;
+      offsetY = e.clientY - rect.top;
 
-          // Set the local stream to local video element
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = stream;
-          }
-
-          call.answer(stream); // Answer the incoming call with local media stream
-          setActiveCall(call);
-
-          console.log("answered the stream", stream);
-
-          call.on("stream", (remoteStream) => {
-            setshowOtheruser(true);
-            if (remoteVideoRef.current) {
-              remoteVideoRef.current.srcObject = remoteStream;
-            }
-          });
-          call.on("close", () => {
-            console.log("Call closed by peer");
-            endCall();
-          });
-        } catch (error) {
-          console.error("Error answering call:", error);
-        }
-      });
-
-      peer.on("error", (error) => {
-        console.error("Peer error:", error);
-      });
+      // Prevent any default behavior
+      e.preventDefault();
     }
-    return () => {
-      if (peerInstanceRef.current) {
-        endCall();
-        peerInstanceRef.current.destroy();
+
+    function handleTouchStart(e) {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        const mouseEvent = new MouseEvent("mousedown", {
+          clientX: touch.clientX,
+          clientY: touch.clientY,
+        });
+        startDrag(mouseEvent);
       }
+      e.preventDefault();
+    }
+
+    function drag(e) {
+      if (!isDragging) return;
+
+      // Update the position of the div based on mouse/touch position
+      draggableDiv.style.left = `${e.clientX - offsetX}px`;
+      draggableDiv.style.top = `${e.clientY - offsetY}px`;
+
+      e.preventDefault();
+    }
+
+    function handleTouchMove(e) {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        const mouseEvent = new MouseEvent("mousemove", {
+          clientX: touch.clientX,
+          clientY: touch.clientY,
+        });
+        drag(mouseEvent);
+      }
+      e.preventDefault();
+    }
+
+    function endDrag() {
+      isDragging = false;
+    }
+
+    // Setup function
+    function setupDirectDraggable() {
+      draggableDiv = document.querySelector(".videodiv");
+
+      if (!draggableDiv) {
+        console.error("Draggable div not found");
+        // Try again after a short delay
+        setTimeout(setupDirectDraggable, 500);
+        return;
+      }
+
+      // Make the div position absolute so it can be moved freely
+      draggableDiv.style.position = "absolute";
+      draggableDiv.style.cursor = "move";
+      draggableDiv.style.zIndex = "1000"; // Ensure it's on top
+
+      // Set initial position
+      draggableDiv.style.top = "20px";
+      draggableDiv.style.left = "500px";
+
+      // Event listeners for mouse/touch interactions - directly on the div
+      draggableDiv.addEventListener("mousedown", startDrag);
+      draggableDiv.addEventListener("touchstart", handleTouchStart, {
+        passive: false,
+      });
+
+      // Add event listeners to document to track movement and release
+      document.addEventListener("mousemove", drag);
+      document.addEventListener("touchmove", handleTouchMove, {
+        passive: false,
+      });
+      document.addEventListener("mouseup", endDrag);
+      document.addEventListener("touchend", endDrag);
+    }
+
+    // Call setup
+    setupDirectDraggable();
+
+    // Clean up event listeners when component unmounts
+    return () => {
+      // Find the div again in case it was null earlier
+      if (!draggableDiv) {
+        draggableDiv = document.querySelector(".videodiv");
+      }
+
+      if (draggableDiv) {
+        draggableDiv.removeEventListener("mousedown", startDrag);
+        draggableDiv.removeEventListener("touchstart", handleTouchStart);
+      }
+
+      document.removeEventListener("mousemove", drag);
+      document.removeEventListener("touchmove", handleTouchMove);
+      document.removeEventListener("mouseup", endDrag);
+      document.removeEventListener("touchend", endDrag);
     };
   }, []);
+
+  // peer for video
 
   //user metadata space details
   useEffect(() => {
@@ -704,28 +764,6 @@ const Space = () => {
       endCall();
     }
   };
-
-  // Add this effect to constantly check facing status after each movement
-  useEffect(() => {
-    // Only check if we have a position and there are other users
-    if (userPosition && Object.keys(usersPositions).length > 0) {
-      const facingUsers = checkFacingUsers(
-        { ...userPosition, direction: userDirection, userId: user.id },
-        usersPositions
-      );
-
-      // If we're facing users and don't have an active call, start one
-      if (facingUsers.length > 0 && !activeCall) {
-        startCall(peerId, facingUsers[0].peerId);
-      }
-      // If we're not facing any users but have an active call, end it
-      else if (facingUsers.length === 0 && activeCall) {
-        endCall();
-      }
-    }
-  }, [userPosition, userDirection, usersPositions]);
-
-  // Modify the endCall function to be more robust
   const endCall = async () => {
     console.log("Ending call");
 
@@ -784,9 +822,88 @@ const Space = () => {
     setshowOtheruser(false);
   };
 
-  /// ----------------------------------------//
+  useEffect(() => {
+    if (!peerInstanceRef.current) {
+      const peer = new Peer();
 
-  // Render loading state if space details not loaded
+      peer.on("open", (id) => {
+        console.log("Peer ID:", id);
+        setPeerId(id);
+        peerInstanceRef.current = peer; // Assign to ref
+        setIsInitialized(true); // Mark Peer as initialized
+      });
+      peer.on("connection", (conn) => {
+        conn.on("data", (data) => {
+          if (data.type === "end-call") {
+            endCall();
+          }
+        });
+      });
+
+      peer.on("call", async (call) => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: true,
+          });
+
+          // Set the local stream to local video element
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = stream;
+          }
+
+          call.answer(stream); // Answer the incoming call with local media stream
+          setActiveCall(call);
+
+          console.log("answered the stream", stream);
+
+          call.on("stream", (remoteStream) => {
+            setshowOtheruser(true);
+            if (remoteVideoRef.current) {
+              remoteVideoRef.current.srcObject = remoteStream;
+            }
+          });
+          call.on("close", () => {
+            console.log("Call closed by peer");
+            endCall();
+          });
+        } catch (error) {
+          console.error("Error answering call:", error);
+        }
+      });
+
+      peer.on("error", (error) => {
+        console.error("Peer error:", error);
+      });
+    }
+    return () => {
+      if (peerInstanceRef.current) {
+        endCall();
+        peerInstanceRef.current.destroy();
+      }
+    };
+  }, []);
+
+  // Add this effect to constantly check facing status after each movement
+  useEffect(() => {
+    // Only check if we have a position and there are other users
+    if (userPosition && Object.keys(usersPositions).length > 0) {
+      const facingUsers = checkFacingUsers(
+        { ...userPosition, direction: userDirection, userId: user.id },
+        usersPositions
+      );
+
+      // If we're facing users and don't have an active call, start one
+      if (facingUsers.length > 0 && !activeCall) {
+        startCall(peerId, facingUsers[0].peerId);
+      }
+      // If we're not facing any users but have an active call, end it
+      else if (facingUsers.length === 0 && activeCall) {
+        endCall();
+      }
+    }
+  }, [userPosition, userDirection, usersPositions]);
+
   if (!spaceDetails) {
     return (
       <div className="w-full h-screen flex justify-center items-center text-xl font-semibold">
@@ -798,10 +915,14 @@ const Space = () => {
   const { dimensions, elements } = spaceDetails;
   const [width, height] = dimensions.split("x").map(Number);
 
+  const handleshowChat = () => {
+    setShowChat((prev) => !prev);
+  };
+
   return (
     <div className="flex flex-col justify-between items-center h-screen bg-[#545c8f] p-6 pb-0">
       {/* top div for showing videos for remote user  */}
-      <div className="flex justify-between  w-full">
+      <div className="flex justify-between  w-full ">
         <div>
           {hoveredName && (
             <div
@@ -820,50 +941,31 @@ const Space = () => {
             {spaceDetails.name}
           </h1>
         </div>
-        <div className="flex justfy-between items-center gap-4">
+        <div className="videodiv flex justfy-between items-center gap-4">
           <div
-            className={`rounded-xl w-[187px] h-[140px] bg-gray-300 ${!showOtheruser && "hidden"}`}
+            className={`rounded-xl w-[auto] h-[140px] flex gap-10 ${!showOtheruser && "hidden"}`}
           >
             <video
-              className="rounded-xl"
+              className="rounded-xl w-64 h-48"
+              ref={localVideoRef}
+              autoPlay
+              muted
+            />
+            <video
+              className="rounded-xl w-64 h-48"
               ref={remoteVideoRef}
               autoPlay
               muted
-              style={{ width: "100%", height: "100%" }}
             />
           </div>
         </div>
-        {/* <div>
-        {
-          showUsers && (
-            <div className="absolute mt-12 right-7 w-auto h-auto bg-red-500 flex flex-col justify-center items-center z-[99] rounded-xl">
-             {Object.entries(usersPositions).map(([userId, userInfo]) => {
-              console.log(userInfo);
-              
-                      return (
-                        <div
-                          key={userId}
-                          className="text-white p-2"
-                        >
-                          {userInfo.name}
-                        </div>
-                      );
-                    
-                  })}
-            </div>
-          )
-        }
-        <div className="relative w-[80px] h-[40px] rounded-xl bg-gray-400 p-2 flex justify-center items-center cursor-pointer" onClick={()=> setShowUsers((prev) => !prev)}>
-          <p>Users: 0</p>
-        </div>
-      </div> */}
       </div>
 
       {/* game grid and chat div */}
-      <div className="flex w-full h-4/6 gap-6 flex justify-between items-center">
+      <div className="flex w-full h-5/6 gap-6 flex justify-between items-center">
         {/* Game Grid */}
         <div
-          className="w-[80%] h-full mr-4 overflow-auto border-2 border-white rounded-lg"
+          className="w-[80%] h-full mr-4 overflow-auto  rounded-lg"
           tabIndex={0}
           style={{ outline: "none" }}
         >
@@ -952,58 +1054,62 @@ const Space = () => {
         </div>
 
         {/* Chat Interface - Right Side */}
-        <div className="w-[55%] h-full ">
-          {/* <h1 className="text-center text-xl mb-2">Space Chat</h1> */}
-          <div className="w-[100%] h-[100%] bg-gray-800 rounded-lg flex flex-col ">
-            <div className="flex-grow overflow-y-auto p-2 space-y-2">
-              {chatMessages.map((msg, index) => {
-                const isSelf =
-                  msg.userId === user?.id || msg.userId === user?.userId;
-                return (
-                  <div
-                    key={index}
-                    className={`p-2 rounded-lg ${
-                      isSelf
-                        ? " text-white w-full flex justify-end items-center"
-                        : " text-white w-full flex justify-start items-center"
-                    }`}
-                  >
+        {showChat ? (
+          <div className="w-[35%] h-full ">
+            {/* <h1 className="text-center text-xl mb-2">Space Chat</h1> */}
+            <div className="w-[100%] h-[100%] bg-gray-800 rounded-lg flex flex-col ">
+              <div className="flex-grow overflow-y-auto p-2 space-y-2">
+                {chatMessages.map((msg, index) => {
+                  const isSelf =
+                    msg.userId === user?.id || msg.userId === user?.userId;
+                  return (
                     <div
-                      className={`flex flex-col ${msg.userId === user?.id ? "w-auto max-w-[80%] bg-gray-600 justify-end rounded-xl h-auto p-2 " : "w-auto bg-gray-600 justify-end rounded-xl h-auto p-2"}`}
+                      key={index}
+                      className={`p-2 rounded-lg ${
+                        isSelf
+                          ? " text-white w-full flex justify-end items-center"
+                          : " text-white w-full flex justify-start items-center"
+                      }`}
                     >
-                      <div className="text-xs text-gray-300">
-                        {isSelf ? "You" : msg.username}
+                      <div
+                        className={`flex flex-col ${msg.userId === user?.id ? "w-auto max-w-[80%] bg-gray-600 justify-end rounded-xl h-auto p-2 " : "w-auto bg-gray-600 justify-end rounded-xl h-auto p-2"}`}
+                      >
+                        <div className="text-xs text-gray-300">
+                          {isSelf ? "You" : msg.username}
+                        </div>
+                        {msg.message}
                       </div>
-                      {msg.message}
                     </div>
-                  </div>
-                );
-              })}
-              <div ref={chatEndRef} /> {/* Scroll anchor */}
-            </div>
-
-            <form
-              onSubmit={handleChatSubmit}
-              className="p-4 border-t border-gray-700"
-            >
-              <div className="flex w-full justify-between items-center">
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Type a message..."
-                  className="flex-grow p-2 bg-gray-700 text-white rounded-l-lg focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded-r-lg hover:bg-blue-700"
-                >
-                  Send
-                </button>
+                  );
+                })}
+                <div ref={chatEndRef} /> {/* Scroll anchor */}
               </div>
-            </form>
+
+              <form
+                onSubmit={handleChatSubmit}
+                className="p-4 border-t border-gray-700"
+              >
+                <div className="flex w-full justify-between items-center">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Type a message..."
+                    className="flex-grow p-2 bg-gray-700 text-white rounded-l-lg focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    className="bg-blue-600 text-white px-4 py-2 rounded-r-lg hover:bg-blue-700"
+                  >
+                    Send
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="w-[35%] h-full "> </div>
+        )}
       </div>
 
       {/* bottom div for user information */}
@@ -1073,7 +1179,12 @@ const Space = () => {
           </div>
         </div>
         <div className="flex gap-2">
-          <button>chat</button>
+          <button
+            onClick={handleshowChat}
+            className="mr-10 flex gap-2 justify-center items-center"
+          >
+            <BsChatLeftText size={25} />
+          </button>
           <div className="bg-gray-400 w-[1px] h-[35px]" />
           <button onClick={() => navigate("/")}>
             <FaSignOutAlt size={20} />

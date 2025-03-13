@@ -476,7 +476,7 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
   }, []);
 
   const handleCreateSpace = async () => {
-    console.log(name, dimensions, selectedMap);
+    console.log(name, dimensions, maps[selected]);
     if (name === "") {
       toast("Please enter a name for the space");
       return;
@@ -489,7 +489,7 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
         {
           name,
           dimensions,
-          mapId: selectedMap.id,
+          mapId: maps[selected].id,
           thumbnail:
             "https://cdn.gather.town/v0/b/gather-town.appspot.com/o/remote-work%2Foffice-configuration%2Fscreenshots%2FSOURCE_SPACE_RW_6.png?alt=media",
         },
@@ -558,6 +558,13 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
                       >
                         <span className="">🌳</span>
                         <p>Courtyard</p>
+                      </div>
+                      <div
+                        onClick={() => setSelected(1)}
+                        className={`cursor-pointer col-span-6 w-[120px] h-[80px] flex justify-center items-center bg-[#545c8f] border border-gray-600 rounded-xl ${selected === 1 && "border-2 border-green-600"}`}
+                      >
+                        <span className="">🏙️</span>
+                        <p>Library</p>
                       </div>
                       {/* <div onClick={()=> setSelected(1)}  className={`cursor-pointer col-span-6 w-[120px] h-[80px] flex justify-center items-center bg-[#545c8f] border border-gray-600 rounded-xl ${selected ===1 && "border-2 border-green-600"}`}>
                          <span className="">🏙️</span>
