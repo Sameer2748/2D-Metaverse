@@ -30,6 +30,51 @@ interface GuestTokenPayload {
   guestName: string;
 }
 
+// Space cache to store space details
+class SpaceCache {
+  private spaces: Map<string, any> = new Map();
+  private cacheTTL: number = 60 * 60 * 1000; // 1 hour TTL
+  private lastUpdated: Map<string, number> = new Map();
+
+  async getSpace(spaceId: string): Promise<any> {
+    const now = Date.now();
+    const cachedSpace = this.spaces.get(spaceId);
+    const lastUpdatedTime = this.lastUpdated.get(spaceId) || 0;
+
+    // If space exists in cache and hasn't expired
+    if (cachedSpace && now - lastUpdatedTime < this.cacheTTL) {
+      console.log(`Using cached space data for ${spaceId}`);
+      return cachedSpace;
+    }
+
+    // Fetch from database
+    console.log(`Fetching space ${spaceId} from database`);
+    const space = await client.space.findUnique({
+      where: { id: spaceId },
+      include: {
+        elements: {
+          include: {
+            element: true,
+          },
+        },
+      },
+    });
+
+    // Update cache
+    if (space) {
+      this.spaces.set(spaceId, space);
+      this.lastUpdated.set(spaceId, now);
+    }
+
+    return space;
+  }
+
+  invalidateCache(spaceId: string) {
+    this.spaces.delete(spaceId);
+    this.lastUpdated.delete(spaceId);
+  }
+}
+
 class UserManager {
   public users: Map<string, User> = new Map();
   private spaceUsers: Map<string, Set<string>> = new Map();
@@ -116,22 +161,14 @@ class UserManager {
 }
 
 const userManager = new UserManager();
+const spaceCache = new SpaceCache();
 
 function generateUniqueId(): string {
   return Math.random().toString(36).substring(2, 12);
 }
 
 async function fetchSpace(spaceId: string) {
-  return await client.space.findUnique({
-    where: { id: spaceId },
-    include: {
-      elements: {
-        include: {
-          element: true,
-        },
-      },
-    },
-  });
+  return await spaceCache.getSpace(spaceId);
 }
 
 function setupWebSocketServer(wss: WebSocketServer) {
@@ -353,6 +390,15 @@ function setupWebSocketServer(wss: WebSocketServer) {
                 chattingUser.spaceId,
                 chatMessage
               );
+            }
+            break;
+
+          // You can add a new message type to handle space updates if needed
+          case "space-update":
+            const updatingUser = userManager.findUserByWebSocket(ws);
+            if (updatingUser && updatingUser.spaceId) {
+              // Invalidate the cache for this space to force a refresh
+              spaceCache.invalidateCache(updatingUser.spaceId);
             }
             break;
         }
