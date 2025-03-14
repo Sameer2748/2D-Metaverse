@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { SetStateAction, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import { useRecoilState } from "recoil";
@@ -97,8 +97,44 @@ const Space = () => {
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef(null);
   const [activeCall, setActiveCall] = useState(null);
-  const [showChat, setShowChat] = useState(false);
-  const [activeConnection, setActiveConnection] = useState<MediaConnection>();
+  const [showChat, setShowChat] = useState(true);
+  const [activeConnection, setActiveConnection] =
+    useState<SetStateAction<null>>();
+
+  const [localMediaState, setLocalMediaState] = useState<MediaState>({
+    audio: true,
+    video: true,
+  });
+  const [remoteMediaState, setRemoteMediaState] = useState<MediaState>({
+    audio: true,
+    video: true,
+  });
+  const localStreamRef = useRef<MediaStream | null>(null);
+
+  // Function to toggle local audio
+  const toggleLocalAudio = () => {
+    if (localVideoRef.current?.srcObject) {
+      const stream = localVideoRef.current.srcObject as MediaStream;
+      const audioTrack = stream.getAudioTracks()[0];
+
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        setLocalMediaState((prev) => ({ ...prev, audio: audioTrack.enabled }));
+      }
+    }
+  };
+
+  const toggleLocalVideo = () => {
+    if (localVideoRef.current?.srcObject) {
+      const stream = localVideoRef.current.srcObject as MediaStream;
+      const videoTrack = stream.getVideoTracks()[0];
+
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        setLocalMediaState((prev) => ({ ...prev, video: videoTrack.enabled }));
+      }
+    }
+  };
 
   useEffect(() => {
     // Cleanup function to close existing connections
@@ -714,7 +750,6 @@ const Space = () => {
       audio: true,
     };
 
-    // Check if Peer is initialized
     if (!peerInstanceRef.current || !isInitialized) {
       console.error("Peer instance not initialized yet");
       return;
@@ -728,6 +763,9 @@ const Space = () => {
         // Get local media stream
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
+        // Store the stream in a ref so toggle functions can access it later
+        localStreamRef.current = stream;
+
         // Set the local stream to local video element
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
@@ -735,6 +773,7 @@ const Space = () => {
 
         // Make the call to the remote Peer ID
         const call = peerInstanceRef.current.call(to, stream);
+        setActiveCall(call);
 
         // Listen for the remote stream
         call.on("stream", (remoteStream) => {
@@ -747,8 +786,6 @@ const Space = () => {
         call.on("close", () => {
           endCall();
         });
-
-        // Handle call errors
         call.on("error", (err) => {
           console.error("Call error:", err);
         });
@@ -757,6 +794,13 @@ const Space = () => {
       conn.on("data", (data) => {
         if (data.type === "end-call") {
           endCall();
+        } else if (data.type === "media-state-change") {
+          alert("Changing media controls");
+          // Update remote peer's media state in our UI
+          setRemoteMediaState({
+            audio: data.audio,
+            video: data.video,
+          });
         }
       });
     } catch (error) {
@@ -764,6 +808,7 @@ const Space = () => {
       endCall();
     }
   };
+
   const endCall = async () => {
     console.log("Ending call");
 
@@ -818,7 +863,8 @@ const Space = () => {
       }
       setActiveConnection(null);
     }
-
+    setLocalMediaState({ audio: true, video: true });
+    setRemoteMediaState({ audio: true, video: true });
     setshowOtheruser(false);
   };
 
@@ -836,6 +882,13 @@ const Space = () => {
         conn.on("data", (data) => {
           if (data.type === "end-call") {
             endCall();
+          } else if (data.type === "media-state-change") {
+            alert("changing media controls ");
+            // Update remote peer's media state in our UI
+            setRemoteMediaState({
+              audio: data.audio,
+              video: data.video,
+            });
           }
         });
       });
@@ -847,15 +900,19 @@ const Space = () => {
             video: true,
           });
 
+          // Store the stream reference
+          localStreamRef.current = stream;
+
           // Set the local stream to local video element
           if (localVideoRef.current) {
             localVideoRef.current.srcObject = stream;
           }
 
-          call.answer(stream); // Answer the incoming call with local media stream
+          // Answer the call with the local media stream
+          call.answer(stream);
           setActiveCall(call);
 
-          console.log("answered the stream", stream);
+          console.log("Answered the call with stream", stream);
 
           call.on("stream", (remoteStream) => {
             setshowOtheruser(true);
@@ -943,20 +1000,78 @@ const Space = () => {
         </div>
         <div className="videodiv flex justfy-between items-center gap-4">
           <div
-            className={`rounded-xl w-[auto] h-[140px] flex gap-10 ${!showOtheruser && "hidden"}`}
+            className={`w-full flex gap-4 ${!showOtheruser && "justify-center"}`}
           >
-            <video
-              className="rounded-xl w-64 h-48"
-              ref={localVideoRef}
-              autoPlay
-              muted
-            />
-            <video
-              className="rounded-xl w-64 h-48"
-              ref={remoteVideoRef}
-              autoPlay
-              muted
-            />
+            {/* Local video */}
+            <div className="relative w-1/2 max-w-[200px]">
+              <video
+                className="rounded-xl w-full h-full object-cover"
+                ref={localVideoRef}
+                autoPlay
+                muted
+              />
+              {!localMediaState.video && (
+                <div className="absolute inset-0 bg-blue-500 bg-opacity-80 flex items-center justify-center rounded-xl">
+                  <span className="text-white font-medium">Camera Off</span>
+                </div>
+              )}
+              {!localMediaState.audio && (
+                <div className="absolute bottom-2 right-2 bg-red-500 p-1 rounded-full">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 text-white"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
+                      clipRule="evenodd"
+                    />
+                    <path d="M3 3l14 14" stroke="white" strokeWidth="2" />
+                  </svg>
+                </div>
+              )}
+              <div className="absolute top-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-white text-xs">
+                You
+              </div>
+            </div>
+
+            {/* Remote video */}
+            {showOtheruser && (
+              <div className="relative w-1/2 max-w-[200px]">
+                <video
+                  className="rounded-xl w-full h-full object-cover"
+                  ref={remoteVideoRef}
+                  autoPlay
+                />
+                {!remoteMediaState.video && (
+                  <div className="absolute inset-0 bg-blue-500 bg-opacity-80 flex items-center justify-center rounded-xl">
+                    <span className="text-white font-medium">Camera Off</span>
+                  </div>
+                )}
+                {!remoteMediaState.audio && (
+                  <div className="absolute bottom-2 right-2 bg-red-500 p-1 rounded-full">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 text-white"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
+                        clipRule="evenodd"
+                      />
+                      <path d="M3 3l14 14" stroke="white" strokeWidth="2" />
+                    </svg>
+                  </div>
+                )}
+                <div className="absolute top-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-white text-xs">
+                  Remote
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1035,9 +1150,28 @@ const Space = () => {
                             transform: "translate(-50%, -50%)",
                           }}
                         >
-                          <div className="pl-2 pr-2 p-1 text-white bg-black rounded-xl absolute right-[0.2rem] -top-[2.5rem] opacity-[0.7]">
+                          {/* Name bubble */}
+                          <div
+                            className="
+            inline-block
+            w-auto
+            whitespace-nowrap
+            px-2 py-1
+            text-white
+            bg-black
+            bg-opacity-70
+            rounded-xl
+            absolute
+            -top-10
+            left-1/2
+            transform
+            -translate-x-1/2
+          "
+                          >
                             {position.name}
                           </div>
+
+                          {/* Avatar */}
                           <AnimatedAvatar2
                             direction={position.direction}
                             isMoving={true}
@@ -1177,6 +1311,93 @@ const Space = () => {
               <p className="text-sm">{user.username}</p>
             </div>
           </div>
+        </div>
+        {/* video containers */}
+        <div className="mt-4 flex gap-4 justify-center">
+          <button
+            onClick={toggleLocalAudio}
+            className={`p-2 rounded-full ${localMediaState.audio ? "bg-gray-200" : "bg-red-500"}`}
+          >
+            {localMediaState.audio ? (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                />
+              </svg>
+            ) : (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6 text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5.586 15H4a1 1 0 01-1-1V8a1 1 0 011-1h1.586l4.707-4.707C10.923 1.663 12 2.109 12 3v18c0 .891-1.077 1.337-1.707.707L5.586 17H4a1 1 0 01-1-1v-1z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"
+                />
+              </svg>
+            )}
+          </button>
+          <button
+            onClick={toggleLocalVideo}
+            className={`p-2 rounded-full ${localMediaState.video ? "bg-gray-200" : "bg-red-500"}`}
+          >
+            {localMediaState.video ? (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                />
+              </svg>
+            ) : (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6 text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"
+                />
+              </svg>
+            )}
+          </button>
         </div>
         <div className="flex gap-2">
           <button

@@ -33,7 +33,7 @@ interface Map {
   name: string;
   width: number;
   height: number;
-  thubmnail: string;
+  thumbnail: string;
 }
 
 interface Space {
@@ -484,14 +484,14 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
 
     try {
       setLoading(true);
+
       const newSpace = await axios.post(
         "http://localhost:3000/api/v1/space/",
         {
           name,
           dimensions,
           mapId: maps[selected].id,
-          thumbnail:
-            "https://cdn.gather.town/v0/b/gather-town.appspot.com/o/remote-work%2Foffice-configuration%2Fscreenshots%2FSOURCE_SPACE_RW_6.png?alt=media",
+          thumbnail: maps[selected].thumbnail,
         },
         {
           headers: {
@@ -509,6 +509,9 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
       console.error("Space creation failed", error);
     }
   };
+  useEffect(() => {
+    console.log(maps[selected]);
+  }, [selected]);
 
   return (
     <>
@@ -543,7 +546,7 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
               <div className="w-[65%] h-full rounded-xl">
                 <img
                   className="w-full h-full rounded-xl"
-                  src={selectedMap?.thumbnail}
+                  src={maps[selected]?.thumbnail}
                   alt="ldnbd"
                 />
               </div>
