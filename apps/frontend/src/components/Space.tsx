@@ -8,6 +8,7 @@ import Peer, { MediaConnection } from "peerjs";
 import { FaSignOutAlt } from "react-icons/fa";
 import { AnimatedAvatar, AnimatedAvatar2 } from "./Avatars";
 import { BsChatLeftText } from "react-icons/bs";
+import MeetingRoom from "./MeetingRoom";
 
 // Avatar Direction Enum
 enum AvatarDirection {
@@ -33,6 +34,7 @@ interface UserPositionInfo {
   name?: string;
   peerId?: string;
   Avatar?: string;
+  inMeetingRoom?: boolean;
 }
 
 interface MediaState {
@@ -110,6 +112,114 @@ const Space = () => {
     video: true,
   });
   const localStreamRef = useRef<MediaStream | null>(null);
+
+  //meeting room states
+  // Add these new state variables
+  const [inMeetingRoom, setInMeetingRoom] = useState(false);
+  const [showMeetingRoom, setShowMeetingRoom] = useState(true);
+  const [meetingRoomUsers, setMeetingRoomUsers] = useState<{
+    [key: string]: UserPositionInfo;
+  }>({});
+  const [meetingRoomChatMessages, setMeetingRoomChatMessages] = useState<
+    ChatMessage[]
+  >([]);
+  const [meetingRoomChatInput, setMeetingRoomChatInput] = useState("");
+
+  // Add this to your component
+  const isMeetingRoom = (x: number, y: number) => {
+    // Define the gate coordinates (adjust based on your map)
+    const gateX = 13; // Approximate x-coordinate based on your screenshot
+    const gateY = 15; // Approximate y-coordinate based on your screenshot
+
+    // Check if user is at or has passed through the gate
+    const check = x <= gateX && y >= gateY;
+    console.log(check);
+    if (!check && inMeetingRoom) {
+      sendMessage(
+        JSON.stringify({
+          type: "leave-meeting-room",
+          payload: { userId: user.id },
+        })
+      );
+    }
+    return x <= gateX && y >= gateY;
+  };
+
+  //  peer connection to all user ion the chat room
+  useEffect(() => {
+    if (inMeetingRoom) {
+      // Connect to all users in the meeting room
+      Object.values(meetingRoomUsers).forEach((roomUser) => {
+        // Skip if it's the current user or already connected
+        if (roomUser.userId === user?.id) return;
+
+        // Create peer connection
+        const conn = peerInstanceRef.current.connect(roomUser.peerId);
+        conn.on("open", async () => {
+          try {
+            // Get media stream
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: true,
+            });
+
+            // Store stream for later use
+            localStreamRef.current = stream;
+
+            // Display local video
+            if (localVideoRef.current) {
+              localVideoRef.current.srcObject = stream;
+            }
+
+            // Call the other user
+            const call = peerInstanceRef.current.call(roomUser.peerId, stream);
+
+            // Handle incoming stream
+            call.on("stream", (remoteStream) => {
+              // Create or find video element for this user
+              let videoEl = document.getElementById(
+                `meeting-video-${roomUser.userId}`
+              );
+              if (!videoEl) {
+                videoEl = document.createElement("video");
+                videoEl.id = `meeting-video-${roomUser.userId}`;
+                videoEl.autoplay = true;
+                document
+                  .getElementById("meeting-videos-container")
+                  .appendChild(videoEl);
+              }
+
+              videoEl.srcObject = remoteStream;
+            });
+          } catch (error) {
+            console.error("Error setting up meeting room call:", error);
+          }
+        });
+      });
+    } else {
+      // Clean up video connections when leaving meeting room
+      // (similar to your existing endCall function)
+      const meetingVideosContainer = document.getElementById(
+        "meeting-videos-container"
+      );
+      if (meetingVideosContainer) {
+        const videoElements =
+          meetingVideosContainer.querySelectorAll("video:not([muted])");
+        videoElements.forEach((videoEl) => {
+          if (videoEl.srcObject) {
+            const stream = videoEl.srcObject;
+            if (stream instanceof MediaStream) {
+              stream.getTracks().forEach((track) => track.stop());
+            }
+            videoEl.srcObject = null;
+          }
+          if (videoEl.id !== "local-video") {
+            videoEl.remove();
+          }
+        });
+      }
+    }
+  }, [inMeetingRoom, meetingRoomUsers]);
 
   // Function to toggle local audio
   const toggleLocalAudio = () => {
@@ -260,8 +370,6 @@ const Space = () => {
     };
   }, []);
 
-  // peer for video
-
   //user metadata space details
   useEffect(() => {
     const fetch = async () => {
@@ -393,6 +501,46 @@ const Space = () => {
           });
           break;
 
+        case "enter-meeting-room":
+          // Add user to meeting room users
+          setMeetingRoomUsers((prev) => ({
+            ...prev,
+            [message.payload.userId]: {
+              userId: message.payload.userId,
+              name: message.payload.name,
+              peerId: message.payload.peerId,
+            },
+          }));
+
+          // If this is about the current user, update their status
+          if (message.payload.userId === user?.id) {
+            setInMeetingRoom(true);
+          }
+          break;
+
+        case "leave-meeting-room":
+          // Remove user from meeting room users
+          setMeetingRoomUsers((prev) => {
+            const updated = { ...prev };
+            delete updated[message.payload.userId];
+            return updated;
+          });
+
+          // If this is about the current user, update their status
+          if (message.payload.userId === user?.id) {
+            setInMeetingRoom(false);
+          }
+          break;
+
+        case "meeting-room-users":
+          // Update the full list of meeting room users (sent when joining)
+          setMeetingRoomUsers(message.payload.users);
+          break;
+
+        case "meeting-room-chat":
+          // Handle meeting room specific chat messages
+          setMeetingRoomChatMessages((prev) => [...prev, message.payload]);
+          break;
         default:
           console.warn("Unhandled message type:", message.type);
       }
@@ -450,6 +598,24 @@ const Space = () => {
       })
     );
     setChatInput("");
+  };
+  // dynamic meeting room chat messages
+  const handleMeetingRoomChatSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!meetingRoomChatInput.trim()) return;
+
+    sendMessage(
+      JSON.stringify({
+        type: "meeting-room-chat",
+        payload: {
+          message: meetingRoomChatInput,
+          sender: user?.name || "Unknown",
+          senderId: user?.id,
+        },
+      })
+    );
+    setMeetingRoomChatInput("");
   };
 
   // const StartCall = async (from: string, to: string) => {
@@ -635,6 +801,37 @@ const Space = () => {
     setUserPosition(newPosition);
     setUserDirection(newDirection);
 
+    const wasInMeetingRoom = userPosition.inMeetingRoom;
+    const nowInMeetingRoom = isMeetingRoom(newPosition.x, newPosition.y);
+
+    // Check if meeting room status changed
+    if (nowInMeetingRoom !== wasInMeetingRoom) {
+      // Update user position with meeting room status
+      newPosition.inMeetingRoom = nowInMeetingRoom;
+
+      // Send WebSocket message about meeting room status change
+      sendMessage(
+        JSON.stringify({
+          type: nowInMeetingRoom ? "enter-meeting-room" : "leave-meeting-room",
+          payload: {
+            userId: user.id,
+            name: user.name,
+            peerId: peerId,
+          },
+        })
+      );
+
+      // End any active one-to-one call when entering meeting room
+      if (nowInMeetingRoom && activeCall) {
+        endCall();
+      }
+
+      // If entering meeting room, show alert
+      // if (nowInMeetingRoom) {
+      //   alert("You have entered the meeting room!");
+      // }
+    }
+
     // Send movement data
     sendMessage(
       JSON.stringify({
@@ -648,19 +845,22 @@ const Space = () => {
       })
     );
 
-    const facingUsers = checkFacingUsers(
-      { ...newPosition, direction: newDirection, userId: user.id },
-      usersPositions
-    );
+    if (!nowInMeetingRoom) {
+      const facingUsers = checkFacingUsers(
+        { ...newPosition, direction: newDirection, userId: user.id },
+        usersPositions
+      );
 
-    if (facingUsers.length > 0) {
-      if (!activeCall) {
-        startCall(peerId, facingUsers[0].peerId);
+      if (facingUsers.length > 0) {
+        if (!activeCall) {
+          startCall(peerId, facingUsers[0].peerId);
+        }
+      } else if (activeCall) {
+        endCall();
       }
-    } else if (activeCall) {
-      endCall();
     }
   };
+
   useEffect(() => {
     const videoAvailable = navigator.mediaDevices
       .enumerateDevices()
@@ -999,80 +1199,87 @@ const Space = () => {
           </h1>
         </div>
         <div className="videodiv flex justfy-between items-center gap-4">
-          <div
-            className={`w-full flex gap-4 ${!showOtheruser && "justify-center"}`}
-          >
-            {/* Local video */}
-            <div className="relative w-1/2 max-w-[200px]">
-              <video
-                className="rounded-xl w-full h-full object-cover"
-                ref={localVideoRef}
-                autoPlay
-                muted
-              />
-              {!localMediaState.video && (
-                <div className="absolute inset-0 bg-blue-500 bg-opacity-80 flex items-center justify-center rounded-xl">
-                  <span className="text-white font-medium">Camera Off</span>
-                </div>
-              )}
-              {!localMediaState.audio && (
-                <div className="absolute bottom-2 right-2 bg-red-500 p-1 rounded-full">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5 text-white"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
-                      clipRule="evenodd"
+          {!inMeetingRoom && (
+            <div
+              className={`w-full flex gap-4 ${!showOtheruser && "justify-center"}`}
+            >
+              {/* Remote video */}
+              {showOtheruser && (
+                <>
+                  {/* Local video */}
+                  <div className="relative w-1/2 max-w-[200px]">
+                    <video
+                      className="rounded-xl w-full h-full object-cover"
+                      ref={localVideoRef}
+                      autoPlay
+                      muted
                     />
-                    <path d="M3 3l14 14" stroke="white" strokeWidth="2" />
-                  </svg>
-                </div>
+                    {!localMediaState.video && (
+                      <div className="absolute inset-0 bg-blue-500 bg-opacity-80 flex items-center justify-center rounded-xl">
+                        <span className="text-white font-medium">
+                          Camera Off
+                        </span>
+                      </div>
+                    )}
+                    {!localMediaState.audio && (
+                      <div className="absolute bottom-2 right-2 bg-red-500 p-1 rounded-full">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5 text-white"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
+                            clipRule="evenodd"
+                          />
+                          <path d="M3 3l14 14" stroke="white" strokeWidth="2" />
+                        </svg>
+                      </div>
+                    )}
+                    <div className="absolute top-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-white text-xs">
+                      You
+                    </div>
+                  </div>
+                  <div className="relative w-1/2 max-w-[200px]">
+                    <video
+                      className="rounded-xl w-full h-full object-cover"
+                      ref={remoteVideoRef}
+                      autoPlay
+                    />
+                    {!remoteMediaState.video && (
+                      <div className="absolute inset-0 bg-blue-500 bg-opacity-80 flex items-center justify-center rounded-xl">
+                        <span className="text-white font-medium">
+                          Camera Off
+                        </span>
+                      </div>
+                    )}
+                    {!remoteMediaState.audio && (
+                      <div className="absolute bottom-2 right-2 bg-red-500 p-1 rounded-full">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5 text-white"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
+                            clipRule="evenodd"
+                          />
+                          <path d="M3 3l14 14" stroke="white" strokeWidth="2" />
+                        </svg>
+                      </div>
+                    )}
+                    <div className="absolute top-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-white text-xs">
+                      Remote
+                    </div>
+                  </div>
+                </>
               )}
-              <div className="absolute top-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-white text-xs">
-                You
-              </div>
             </div>
-
-            {/* Remote video */}
-            {showOtheruser && (
-              <div className="relative w-1/2 max-w-[200px]">
-                <video
-                  className="rounded-xl w-full h-full object-cover"
-                  ref={remoteVideoRef}
-                  autoPlay
-                />
-                {!remoteMediaState.video && (
-                  <div className="absolute inset-0 bg-blue-500 bg-opacity-80 flex items-center justify-center rounded-xl">
-                    <span className="text-white font-medium">Camera Off</span>
-                  </div>
-                )}
-                {!remoteMediaState.audio && (
-                  <div className="absolute bottom-2 right-2 bg-red-500 p-1 rounded-full">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5 text-white"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
-                        clipRule="evenodd"
-                      />
-                      <path d="M3 3l14 14" stroke="white" strokeWidth="2" />
-                    </svg>
-                  </div>
-                )}
-                <div className="absolute top-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-white text-xs">
-                  Remote
-                </div>
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
@@ -1099,6 +1306,10 @@ const Space = () => {
               const elementAtCell = elements.find(
                 (el) => el.x === x && el.y === y
               );
+              const isMeetingTable = x === 9 && y === 17; // Adjust these coordinates based on your actual grid
+
+              // Only show the button on this table if the user is in the meeting area
+              const showMeetingButton = isMeetingTable && inMeetingRoom;
 
               return (
                 <div key={index} className="w-10 h-10 bg-black relative">
@@ -1109,7 +1320,20 @@ const Space = () => {
                       className="w-full h-full object-cover"
                     />
                   )}
-
+                  {/* Meeting Room Button on specific table */}
+                  {showMeetingButton && (
+                    <button
+                      className="absolute top-2 right-2 w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full flex items-center justify-center z-10 cursor-pointer shadow-lg transform transition-all duration-300 hover:scale-110 animate-bounce"
+                      onClick={() => {
+                        setShowMeetingRoom(true);
+                      }}
+                      style={{
+                        animation: "bounce 1s infinite",
+                      }}
+                    >
+                      <span className="font-bold text-lg">M</span>
+                    </button>
+                  )}
                   {/* Current User Avatar */}
                   {userPosition.x === x && userPosition.y === y && (
                     <div
@@ -1245,6 +1469,21 @@ const Space = () => {
           <div className="w-[35%] h-full "> </div>
         )}
       </div>
+      {inMeetingRoom && showMeetingRoom && (
+        <MeetingRoom
+          user={user}
+          inMeetingRoom={inMeetingRoom}
+          meetingRoomUsers={meetingRoomUsers}
+          meetingRoomChatMessages={meetingRoomChatMessages}
+          meetingRoomChatInput={meetingRoomChatInput}
+          setMeetingRoomChatInput={setMeetingRoomChatInput}
+          handleMeetingRoomChatSubmit={handleMeetingRoomChatSubmit}
+          sendMessage={sendMessage}
+          localVideoRef={localVideoRef}
+          hidemeetingroom={() => setInMeetingRoom(false)}
+          setShowMeetingRoom={() => setShowMeetingRoom(false)}
+        />
+      )}
 
       {/* bottom div for user information */}
       <div

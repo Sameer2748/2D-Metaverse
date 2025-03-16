@@ -2,17 +2,162 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .meeting-container {
+    @apply fixed inset-0 bg-meeting-background bg-opacity-95 flex flex-col;
+  }
+
+  .meeting-header {
+    @apply bg-meeting-header backdrop-blur-md border-b border-white/10 p-4 flex justify-between items-center text-white z-10;
+  }
+
+  .meeting-button {
+    @apply px-4 py-2 rounded-md font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-meeting-background;
+  }
+
+  .leave-button {
+    @apply meeting-button bg-red-500 hover:bg-red-600 focus:ring-red-500;
+  }
+
+  .control-button {
+    @apply meeting-button bg-meeting-card hover:bg-meeting-accent/20 text-white;
+  }
+
+  .video-container {
+    @apply relative bg-meeting-card rounded-lg overflow-hidden transition-all duration-300 shadow-md shadow-black/30 border border-white/10;
+  }
+
+  .video-name-badge {
+    @apply absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full text-white text-sm font-medium;
+  }
+
+  .chat-message {
+    @apply mb-3 max-w-[80%] transition-all duration-300 animate-fade-in;
+  }
+
+  .chat-message-sender {
+    @apply text-xs text-gray-400 mb-1 font-medium;
+  }
+
+  .chat-message-bubble {
+    @apply p-3 rounded-2xl break-words;
+  }
+
+  .my-message {
+    @apply ml-auto animate-slide-in;
+  }
+
+  .my-message .chat-message-bubble {
+    @apply bg-meeting-accent/30 backdrop-blur-md text-white rounded-tr-none;
+  }
+
+  .other-message {
+    @apply mr-auto animate-slide-right;
+  }
+
+  .other-message .chat-message-bubble {
+    @apply bg-meeting-card backdrop-blur-md text-white rounded-tl-none;
+  }
+
+  .pagination-button {
+    @apply px-3 py-1 bg-meeting-card/80 backdrop-blur-md hover:bg-meeting-card text-white rounded-full border border-white/10 transition-all duration-200 flex items-center gap-1 shadow-lg;
+  }
 }
