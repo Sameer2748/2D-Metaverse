@@ -45,6 +45,7 @@ interface MeetingRoomProps {
   localVideoRef: React.RefObject<HTMLVideoElement>;
   hidemeetingroom: () => void;
   setShowMeetingRoom: () => void;
+  spaceId: string;
 }
 
 const MeetingRoom: React.FC<MeetingRoomProps> = ({
@@ -59,11 +60,13 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
   localVideoRef,
   hidemeetingroom,
   setShowMeetingRoom,
+  spaceId,
 }) => {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
 
+  console.log(meetingRoomUsers);
   // Initialize media stream when component mounts
   useEffect(() => {
     if (!inMeetingRoom) return;
@@ -138,7 +141,10 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
     sendMessage(
       JSON.stringify({
         type: "leave-meeting-room",
-        payload: { userId: user.id },
+        payload: {
+          userId: user.id,
+          spaceId: spaceId,
+        },
       })
     );
   };
@@ -174,8 +180,7 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
           <button onClick={setShowMeetingRoom}>Hide MeetingRoom</button>
           <h2 className="text-lg font-medium flex items-center">
             <Users size={20} className="mr-2" />
-            Meeting Room ({Object.keys(meetingRoomUsers).length + 1}{" "}
-            participants)
+            Meeting Room ({Object.keys(meetingRoomUsers).length} participants)
           </h2>
         </div>
 
@@ -215,6 +220,7 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
           onInputChange={setMeetingRoomChatInput}
           onSubmit={handleMeetingRoomChatSubmit}
           currentUserId={user.id}
+          spaceId={spaceId}
         />
       </div>
     </div>

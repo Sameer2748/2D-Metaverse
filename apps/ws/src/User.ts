@@ -14,6 +14,23 @@ interface User {
   isGuest?: boolean;
 }
 
+interface MeetingRoomUser {
+  userId: string;
+  name: string;
+  peerId: string;
+  ws: WebSocket;
+}
+
+interface MeetingRoomChatMessage {
+  type: "meeting-room-chat";
+  payload: {
+    message: string;
+    sender: string;
+    senderId: string;
+    timestamp: number;
+  };
+}
+
 interface ChatMessage {
   type: "chat";
   payload: {
@@ -21,6 +38,16 @@ interface ChatMessage {
     message: string;
     timestamp: number;
     username?: string;
+  };
+}
+
+interface MeetingRoomChatMessage {
+  type: "meeting-room-chat";
+  payload: {
+    message: string;
+    sender: string;
+    senderId: string;
+    timestamp: number;
   };
 }
 
@@ -72,6 +99,128 @@ class SpaceCache {
   invalidateCache(spaceId: string) {
     this.spaces.delete(spaceId);
     this.lastUpdated.delete(spaceId);
+  }
+}
+
+class MeetingRoomManager {
+  // Map structure: spaceId -> userId -> MeetingRoomUser
+  private roomsBySpace: Map<string, Map<string, MeetingRoomUser>> = new Map();
+  private wsToUserMap: Map<WebSocket, { userId: string; spaceId: string }> =
+    new Map();
+
+  addUser(
+    userId: string,
+    name: string,
+    peerId: string,
+    spaceId: string,
+    ws: WebSocket
+  ) {
+    // Remove any existing entries for this user
+    this.removeUserByUserId(userId);
+
+    // Get or create the meeting room for this space
+    if (!this.roomsBySpace.has(spaceId)) {
+      this.roomsBySpace.set(spaceId, new Map());
+    }
+    const room = this.roomsBySpace.get(spaceId)!;
+
+    // Add the new user to the room
+    room.set(userId, { userId, name, peerId, ws });
+    this.wsToUserMap.set(ws, { userId, spaceId });
+
+    console.log(
+      `Added user ${userId} (${name}) to meeting room in space ${spaceId}`
+    );
+  }
+
+  removeUserByUserId(userId: string) {
+    // Search in all spaces for this user
+    for (const [spaceId, room] of this.roomsBySpace.entries()) {
+      const user = room.get(userId);
+      if (user) {
+        this.wsToUserMap.delete(user.ws);
+        room.delete(userId);
+        console.log(
+          `Removed user ${userId} from meeting room in space ${spaceId}`
+        );
+
+        // If room is empty, remove it
+        if (room.size === 0) {
+          this.roomsBySpace.delete(spaceId);
+          console.log(`Removed empty meeting room for space ${spaceId}`);
+        }
+        return { userId, spaceId };
+      }
+    }
+    return null;
+  }
+
+  removeUserByWebSocket(ws: WebSocket) {
+    const userInfo = this.wsToUserMap.get(ws);
+    if (userInfo) {
+      const { userId, spaceId } = userInfo;
+      const room = this.roomsBySpace.get(spaceId);
+      if (room) {
+        room.delete(userId);
+        if (room.size === 0) {
+          this.roomsBySpace.delete(spaceId);
+          console.log(`Removed empty meeting room for space ${spaceId}`);
+        }
+      }
+      this.wsToUserMap.delete(ws);
+      console.log(
+        `Removed user ${userId} from meeting room in space ${spaceId}`
+      );
+      return userInfo;
+    }
+    return null;
+  }
+
+  findUserByWebSocket(ws: WebSocket): MeetingRoomUser | undefined {
+    const userInfo = this.wsToUserMap.get(ws);
+    if (userInfo) {
+      const { userId, spaceId } = userInfo;
+      const room = this.roomsBySpace.get(spaceId);
+      if (room) {
+        return room.get(userId);
+      }
+    }
+    return undefined;
+  }
+
+  getUsersInSpace(spaceId: string): MeetingRoomUser[] {
+    const room = this.roomsBySpace.get(spaceId);
+    return room ? Array.from(room.values()) : [];
+  }
+
+  getUsersForClientDisplay(spaceId: string) {
+    const room = this.roomsBySpace.get(spaceId);
+    if (!room) return {};
+
+    // Return a format suitable for clients (without the WebSocket)
+    return Object.fromEntries(
+      Array.from(room.entries()).map(([id, user]) => [
+        id,
+        {
+          userId: user.userId,
+          name: user.name,
+          peerId: user.peerId,
+        },
+      ])
+    );
+  }
+
+  broadcastMessage(spaceId: string, message: any, excludeUserId?: string) {
+    const room = this.roomsBySpace.get(spaceId);
+    if (!room) return;
+
+    const users = Array.from(room.values()).filter(
+      (user) => user.userId !== excludeUserId
+    );
+
+    users.forEach((user) => {
+      user.ws.send(JSON.stringify(message));
+    });
   }
 }
 
@@ -162,6 +311,7 @@ class UserManager {
 
 const userManager = new UserManager();
 const spaceCache = new SpaceCache();
+const meetingRoomManager = new MeetingRoomManager();
 
 function generateUniqueId(): string {
   return Math.random().toString(36).substring(2, 12);
@@ -177,8 +327,82 @@ function setupWebSocketServer(wss: WebSocketServer) {
       try {
         const message = JSON.parse(data.toString());
 
+        // Handle all message types
         switch (message.type) {
-          case "join":
+          case "enter-meeting-room": {
+            const { userId, name, peerId, spaceId } = message.payload;
+
+            // Add user to meeting room users with the WebSocket
+            meetingRoomManager.addUser(userId, name, peerId, spaceId, ws);
+
+            // Send updated meeting room users list to all clients in this space
+            const usersList =
+              meetingRoomManager.getUsersForClientDisplay(spaceId);
+            meetingRoomManager.broadcastMessage(spaceId, {
+              type: "meeting-room-users",
+              payload: {
+                users: usersList,
+                spaceId: spaceId,
+              },
+            });
+
+            // Notify all clients in this space about the new user
+            meetingRoomManager.broadcastMessage(spaceId, {
+              type: "enter-meeting-room",
+              payload: { userId, name, peerId, spaceId },
+            });
+            break;
+          }
+
+          case "leave-meeting-room": {
+            const { userId, spaceId } = message.payload;
+
+            // Remove user from meeting room users
+            meetingRoomManager.removeUserByUserId(userId);
+
+            // Notify all clients about the user leaving
+            meetingRoomManager.broadcastMessage(spaceId, {
+              type: "leave-meeting-room",
+              payload: { userId, spaceId },
+            });
+
+            // Send updated users list
+            const usersList =
+              meetingRoomManager.getUsersForClientDisplay(spaceId);
+            meetingRoomManager.broadcastMessage(spaceId, {
+              type: "meeting-room-users",
+              payload: {
+                users: usersList,
+                spaceId: spaceId,
+              },
+            });
+            break;
+          }
+
+          case "meeting-room-chat": {
+            // Find the sender using websocket
+            const user = meetingRoomManager.findUserByWebSocket(ws);
+            const { spaceId } = message.payload;
+
+            if (user && message.payload && message.payload.message) {
+              const chatMessage: MeetingRoomChatMessage = {
+                type: "meeting-room-chat",
+                payload: {
+                  message: message.payload.message,
+                  sender: user.name,
+                  senderId: user.userId,
+                  timestamp: Date.now(),
+                  spaceId: spaceId,
+                },
+              };
+
+              // Broadcast to all meeting room users in this space
+              meetingRoomManager.broadcastMessage(spaceId, chatMessage);
+            }
+            break;
+          }
+
+          case "join": {
             const { spaceId, token, peerId, isGuest, guestName } =
               message.payload;
 
@@ -292,8 +516,9 @@ function setupWebSocketServer(wss: WebSocketServer) {
               userId
             );
             break;
+          }
 
-          case "movement":
+          case "movement": {
             const { x, y, direction } = message.payload;
             const movingUser = userManager.findUserByWebSocket(ws);
 
@@ -366,8 +591,9 @@ function setupWebSocketServer(wss: WebSocketServer) {
               );
             }
             break;
+          }
 
-          case "chat":
+          case "chat": {
             const chattingUser = userManager.findUserByWebSocket(ws);
 
             if (chattingUser) {
@@ -392,15 +618,16 @@ function setupWebSocketServer(wss: WebSocketServer) {
               );
             }
             break;
+          }
 
-          // You can add a new message type to handle space updates if needed
-          case "space-update":
+          case "space-update": {
             const updatingUser = userManager.findUserByWebSocket(ws);
             if (updatingUser && updatingUser.spaceId) {
               // Invalidate the cache for this space to force a refresh
               spaceCache.invalidateCache(updatingUser.spaceId);
             }
             break;
+          }
         }
       } catch (error) {
         console.error("WebSocket error:", error);

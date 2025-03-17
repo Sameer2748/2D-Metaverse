@@ -541,6 +541,7 @@ const Space = () => {
           // Handle meeting room specific chat messages
           setMeetingRoomChatMessages((prev) => [...prev, message.payload]);
           break;
+
         default:
           console.warn("Unhandled message type:", message.type);
       }
@@ -617,54 +618,6 @@ const Space = () => {
     );
     setMeetingRoomChatInput("");
   };
-
-  // const StartCall = async (from: string, to: string) => {
-  //   console.log("Inside StartCall");
-
-  //   PeerConnection.setRemoteUserId(to);
-  //   console.log("local stream", localStream);
-
-  //   try {
-  //     const pc = await PeerConnection.getInstance();
-
-  //     const offer = await pc.createOffer();
-  //     await pc.setLocalDescription(offer);
-
-  //     // Store the offer
-  //     setStoredOffer(offer);
-
-  //     // Send the offer via signaling (e.g., WebSocket)
-  //     sendMessage(
-  //       JSON.stringify({
-  //         type: "offer",
-  //         payload: {
-  //           from,
-  //           to,
-  //           offer: pc.localDescription, // Always send the latest description
-  //         },
-  //       })
-  //     );
-  //   } catch (error) {
-  //     console.error("Error in StartCall:", error);
-  //     cleanupCall();
-  //   }
-  // };
-
-  // const cleanupCall = () => {
-  //   // // Stop local stream tracks
-
-  //   // Stop remote stream tracks
-  //   if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
-  //     const remoteStream = remoteVideoRef.current.srcObject as MediaStream;
-  //     remoteStream.getTracks().forEach((track) => track.stop());
-  //     remoteVideoRef.current.srcObject = null;
-  //   }
-
-  //   // Reset peer connection
-  //   PeerConnection.resetInstance();
-  // };
-
-  //-----------------------------------//
 
   ///-------------- movement events handlers --------------------------------//
   const determineDirection = (
@@ -785,52 +738,31 @@ const Space = () => {
 
     newDirection = determineDirection(prevPosition, newPosition);
 
+    // Check if the new position is blocked by a static element
     const elementAtNewPosition = spaceDetails.elements.find(
       (el) => el.x === newPosition.x && el.y === newPosition.y
     );
 
+    // Check if the new position is occupied by another user
+    const positionOccupied = Object.values(usersPositions).some(
+      (pos) => pos.x === newPosition.x && pos.y === newPosition.y
+    );
+
+    // If the position is blocked or occupied, stop here
     if (
       (elementAtNewPosition && elementAtNewPosition.element.static) ||
-      Object.values(usersPositions).some(
-        (pos) => pos.x === newPosition.x && pos.y === newPosition.y
-      )
+      positionOccupied
     ) {
       return;
     }
 
-    setUserPosition(newPosition);
-    setUserDirection(newDirection);
-
+    // Check meeting room status for previous and new positions
     const wasInMeetingRoom = userPosition.inMeetingRoom;
     const nowInMeetingRoom = isMeetingRoom(newPosition.x, newPosition.y);
 
-    // Check if meeting room status changed
-    if (nowInMeetingRoom !== wasInMeetingRoom) {
-      // Update user position with meeting room status
-      newPosition.inMeetingRoom = nowInMeetingRoom;
-
-      // Send WebSocket message about meeting room status change
-      sendMessage(
-        JSON.stringify({
-          type: nowInMeetingRoom ? "enter-meeting-room" : "leave-meeting-room",
-          payload: {
-            userId: user.id,
-            name: user.name,
-            peerId: peerId,
-          },
-        })
-      );
-
-      // End any active one-to-one call when entering meeting room
-      if (nowInMeetingRoom && activeCall) {
-        endCall();
-      }
-
-      // If entering meeting room, show alert
-      // if (nowInMeetingRoom) {
-      //   alert("You have entered the meeting room!");
-      // }
-    }
+    // Update user position and direction
+    setUserPosition({ ...newPosition, inMeetingRoom: nowInMeetingRoom });
+    setUserDirection(newDirection);
 
     // Send movement data
     sendMessage(
@@ -845,6 +777,41 @@ const Space = () => {
       })
     );
 
+    // Handle meeting room entry/exit - only send once when crossing the boundary
+    if (nowInMeetingRoom !== wasInMeetingRoom) {
+      if (nowInMeetingRoom) {
+        // Entering the meeting room
+        sendMessage(
+          JSON.stringify({
+            type: "enter-meeting-room",
+            payload: {
+              userId: user.id,
+              name: user.name,
+              peerId: peerId,
+              spaceId: spaceId,
+            },
+          })
+        );
+
+        // End any active one-to-one call when entering meeting room
+        if (activeCall) {
+          endCall();
+        }
+      } else {
+        // Leaving the meeting room
+        sendMessage(
+          JSON.stringify({
+            type: "leave-meeting-room",
+            payload: {
+              userId: user.id,
+              spaceId: spaceId,
+            },
+          })
+        );
+      }
+    }
+
+    // Handle one-to-one calls when outside the meeting room
     if (!nowInMeetingRoom) {
       const facingUsers = checkFacingUsers(
         { ...newPosition, direction: newDirection, userId: user.id },
@@ -860,7 +827,6 @@ const Space = () => {
       }
     }
   };
-
   useEffect(() => {
     const videoAvailable = navigator.mediaDevices
       .enumerateDevices()
@@ -956,22 +922,36 @@ const Space = () => {
     }
 
     try {
+      // Get local media stream FIRST, before establishing connection
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      // Immediately set the local stream to local video element
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+        console.log("Local video source set successfully");
+      } else {
+        console.error("localVideoRef is not available");
+        // Create a delayed attempt to set the video source
+        setTimeout(() => {
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = stream;
+            console.log("Local video source set on delayed attempt");
+          } else {
+            console.error("localVideoRef still not available after delay");
+          }
+        }, 500);
+      }
+
+      // Store the stream in a ref so toggle functions can access it later
+      localStreamRef.current = stream;
+
+      // Now connect to the remote peer
       const conn = peerInstanceRef.current.connect(to);
       setActiveConnection(conn);
 
       conn.on("open", async () => {
-        // Get local media stream
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-
-        // Store the stream in a ref so toggle functions can access it later
-        localStreamRef.current = stream;
-
-        // Set the local stream to local video element
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
-
-        // Make the call to the remote Peer ID
+        // Make the call to the remote Peer ID with the stream we already acquired
+        console.log(to, stream);
         const call = peerInstanceRef.current.call(to, stream);
         setActiveCall(call);
 
@@ -983,9 +963,11 @@ const Space = () => {
             remoteVideoRef.current.srcObject = remoteStream;
           }
         });
+
         call.on("close", () => {
           endCall();
         });
+
         call.on("error", (err) => {
           console.error("Call error:", err);
         });
@@ -995,7 +977,6 @@ const Space = () => {
         if (data.type === "end-call") {
           endCall();
         } else if (data.type === "media-state-change") {
-          alert("Changing media controls");
           // Update remote peer's media state in our UI
           setRemoteMediaState({
             audio: data.audio,
@@ -1204,44 +1185,47 @@ const Space = () => {
               className={`w-full flex gap-4 ${!showOtheruser && "justify-center"}`}
             >
               {/* Remote video */}
+              <div
+                className="relative w-1/2 max-w-[200px]"
+                style={{ display: showOtheruser ? "block" : "none" }}
+              >
+                {localVideoRef && (
+                  <video
+                    className="rounded-xl w-full h-full object-cover"
+                    ref={localVideoRef}
+                    autoPlay
+                    muted
+                  />
+                )}
+                {!localMediaState.video && (
+                  <div className="absolute inset-0 bg-blue-500 bg-opacity-80 flex items-center justify-center rounded-xl">
+                    <span className="text-white font-medium">Camera Off</span>
+                  </div>
+                )}
+                {!localMediaState.audio && (
+                  <div className="absolute bottom-2 right-2 bg-red-500 p-1 rounded-full">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 text-white"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
+                        clipRule="evenodd"
+                      />
+                      <path d="M3 3l14 14" stroke="white" strokeWidth="2" />
+                    </svg>
+                  </div>
+                )}
+                <div className="absolute top-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-white text-xs">
+                  You
+                </div>
+              </div>
               {showOtheruser && (
                 <>
                   {/* Local video */}
-                  <div className="relative w-1/2 max-w-[200px]">
-                    <video
-                      className="rounded-xl w-full h-full object-cover"
-                      ref={localVideoRef}
-                      autoPlay
-                      muted
-                    />
-                    {!localMediaState.video && (
-                      <div className="absolute inset-0 bg-blue-500 bg-opacity-80 flex items-center justify-center rounded-xl">
-                        <span className="text-white font-medium">
-                          Camera Off
-                        </span>
-                      </div>
-                    )}
-                    {!localMediaState.audio && (
-                      <div className="absolute bottom-2 right-2 bg-red-500 p-1 rounded-full">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5 text-white"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
-                            clipRule="evenodd"
-                          />
-                          <path d="M3 3l14 14" stroke="white" strokeWidth="2" />
-                        </svg>
-                      </div>
-                    )}
-                    <div className="absolute top-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-white text-xs">
-                      You
-                    </div>
-                  </div>
                   <div className="relative w-1/2 max-w-[200px]">
                     <video
                       className="rounded-xl w-full h-full object-cover"
@@ -1472,6 +1456,7 @@ const Space = () => {
       {inMeetingRoom && showMeetingRoom && (
         <MeetingRoom
           user={user}
+          spaceId={spaceId}
           inMeetingRoom={inMeetingRoom}
           meetingRoomUsers={meetingRoomUsers}
           meetingRoomChatMessages={meetingRoomChatMessages}

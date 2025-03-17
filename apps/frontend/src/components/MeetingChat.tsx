@@ -17,6 +17,8 @@ interface MeetingChatProps {
   onInputChange: (value: string) => void;
   onSubmit: (e: React.FormEvent) => void;
   currentUserId: string;
+  sendMessage?: (message: string) => void; // Add WebSocket sendMessage function
+  spaceId: string; // Space ID for WebSocket connection
 }
 
 const MeetingChat: React.FC<MeetingChatProps> = ({
@@ -25,6 +27,8 @@ const MeetingChat: React.FC<MeetingChatProps> = ({
   onInputChange,
   onSubmit,
   currentUserId,
+  sendMessage, // WebSocket send function
+  spaceId, // Space ID for WebSocket connection
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -34,6 +38,32 @@ const MeetingChat: React.FC<MeetingChatProps> = ({
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
+
+  // Handle form submission with WebSocket
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!inputValue.trim()) return;
+
+    // Send message via WebSocket if sendMessage is provided
+    if (sendMessage) {
+      sendMessage(
+        JSON.stringify({
+          type: "meeting-room-chat",
+          payload: {
+            message: inputValue,
+            sender: currentUserId, // This would typically be the user's name
+            senderId: currentUserId,
+            timestamp: Date.now(),
+            spaceId: spaceId,
+          },
+        })
+      );
+    }
+
+    // Call the original onSubmit to handle local state updates
+    onSubmit(e);
+  };
 
   return (
     <div className="w-80 bg-meeting-chat backdrop-blur-md border-l border-white/10 flex flex-col h-full">
@@ -47,19 +77,31 @@ const MeetingChat: React.FC<MeetingChatProps> = ({
         {messages.map((msg, idx) => (
           <div
             key={idx}
-            className={`chat-message ${msg.isCurrentUser ? "my-message" : "other-message"}`}
+            className={`flex w-full mb-3 ${
+              msg.isCurrentUser ? "justify-end" : "justify-start"
+            }`}
           >
-            {!msg.isCurrentUser && (
-              <div className="chat-message-sender">{msg.sender}</div>
-            )}
-            <div className="chat-message-bubble">{msg.message}</div>
+            <div
+              className={`max-w-[80%] rounded-lg px-3 py-2 break-words ${
+                msg.isCurrentUser
+                  ? "bg-meeting-accent text-white rounded-br-none"
+                  : "bg-meeting-card text-white rounded-bl-none"
+              }`}
+            >
+              {!msg.isCurrentUser && (
+                <div className="text-xs font-medium text-gray-300 mb-1">
+                  {msg.sender}
+                </div>
+              )}
+              <div>{msg.message}</div>
+            </div>
           </div>
         ))}
         <div ref={messagesEndRef} />
       </div>
 
       <form
-        onSubmit={onSubmit}
+        onSubmit={handleSubmit} // Use our new handler
         className="p-3 border-t border-white/10 bg-meeting-card/50"
       >
         <div className="flex items-center rounded-full bg-meeting-card border border-white/10 pr-2 overflow-hidden">
