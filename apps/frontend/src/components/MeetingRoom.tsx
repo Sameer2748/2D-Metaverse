@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from "react";
 import { Mic, MicOff, Video, VideoOff, Users } from "lucide-react";
 import VideoGrid from "./VideoGrid";
 import MeetingChat from "./MeetingChat";
+import { GiFastBackwardButton } from "react-icons/gi";
 
 // Update interfaces to match Space.tsx
 interface User {
@@ -29,6 +30,7 @@ interface ChatMessage {
   message: string;
   timestamp?: number;
   sender?: string;
+  senderId: string;
   isCurrentUser?: boolean;
   username?: string;
 }
@@ -114,8 +116,8 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
   // Prepare chat messages with isCurrentUser flag
   const formattedChatMessages = meetingRoomChatMessages.map((msg) => ({
     ...msg,
-    isCurrentUser: msg.userId === user.id,
-    sender: msg.username || "Unknown",
+    isCurrentUser: msg.senderId === user.id,
+    sender: msg.sender || "Unknown",
   }));
 
   const toggleMute = () => {
@@ -172,12 +174,15 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
       inMeetingRoom: true,
     },
   };
+  console.log(usersWithCurrentUser);
 
   return (
     <div className="meeting-container animate-fade-in z-50">
       <div className="meeting-header">
         <div className="flex items-center space-x-4">
-          <button onClick={setShowMeetingRoom}>Hide MeetingRoom</button>
+          <button onClick={setShowMeetingRoom}>
+            <GiFastBackwardButton color="white" size={25} />
+          </button>
           <h2 className="text-lg font-medium flex items-center">
             <Users size={20} className="mr-2" />
             Meeting Room ({Object.keys(meetingRoomUsers).length} participants)

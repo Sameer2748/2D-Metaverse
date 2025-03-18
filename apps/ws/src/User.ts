@@ -28,6 +28,7 @@ interface MeetingRoomChatMessage {
     sender: string;
     senderId: string;
     timestamp: number;
+    spaceId: string;
   };
 }
 
@@ -38,16 +39,6 @@ interface ChatMessage {
     message: string;
     timestamp: number;
     username?: string;
-  };
-}
-
-interface MeetingRoomChatMessage {
-  type: "meeting-room-chat";
-  payload: {
-    message: string;
-    sender: string;
-    senderId: string;
-    timestamp: number;
   };
 }
 
@@ -219,6 +210,7 @@ class MeetingRoomManager {
     );
 
     users.forEach((user) => {
+      console.log(message);
       user.ws.send(JSON.stringify(message));
     });
   }
@@ -383,6 +375,7 @@ function setupWebSocketServer(wss: WebSocketServer) {
             // Find the sender using websocket
             const user = meetingRoomManager.findUserByWebSocket(ws);
             const { spaceId } = message.payload;
+            console.log(message.payload);
 
             if (user && message.payload && message.payload.message) {
               const chatMessage: MeetingRoomChatMessage = {
@@ -395,6 +388,7 @@ function setupWebSocketServer(wss: WebSocketServer) {
                   spaceId: spaceId,
                 },
               };
+              console.log(chatMessage);
 
               // Broadcast to all meeting room users in this space
               meetingRoomManager.broadcastMessage(spaceId, chatMessage);
@@ -688,13 +682,29 @@ function calculateSpawnPosition(
 
   staticElements.forEach((pos: string) => occupiedPositions.add(pos));
 
+  // Define the area to avoid
+  const avoidArea = {
+    minX: 1,
+    maxX: 12,
+    minY: 12,
+    maxY: 18,
+  };
+
   let x, y;
   let attempts = 0;
   const maxAttempts = width * height;
+  let isInAvoidArea = false;
 
   do {
     x = Math.floor(Math.random() * width);
     y = Math.floor(Math.random() * height);
+
+    // Check if position is within the area to avoid
+    isInAvoidArea =
+      x >= avoidArea.minX &&
+      x <= avoidArea.maxX &&
+      y >= avoidArea.minY &&
+      y <= avoidArea.maxY;
 
     attempts++;
 
@@ -704,7 +714,7 @@ function calculateSpawnPosition(
       );
       return { x: 0, y: 0 };
     }
-  } while (occupiedPositions.has(`${x},${y}`));
+  } while (occupiedPositions.has(`${x},${y}`) || isInAvoidArea);
 
   return { x, y };
 }

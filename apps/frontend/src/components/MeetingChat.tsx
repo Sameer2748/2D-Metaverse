@@ -6,6 +6,7 @@ interface ChatMessage {
   userId?: string;
   message: string;
   sender: string;
+  senderId: string;
   isCurrentUser: boolean;
   timestamp?: number;
   username?: string;
@@ -31,6 +32,7 @@ const MeetingChat: React.FC<MeetingChatProps> = ({
   spaceId, // Space ID for WebSocket connection
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  console.log(currentUserId, messages);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -83,12 +85,12 @@ const MeetingChat: React.FC<MeetingChatProps> = ({
           >
             <div
               className={`max-w-[80%] rounded-lg px-3 py-2 break-words ${
-                msg.isCurrentUser
+                msg.senderId === currentUserId
                   ? "bg-meeting-accent text-white rounded-br-none"
                   : "bg-meeting-card text-white rounded-bl-none"
               }`}
             >
-              {!msg.isCurrentUser && (
+              {!(msg.senderId === currentUserId) && (
                 <div className="text-xs font-medium text-gray-300 mb-1">
                   {msg.sender}
                 </div>
