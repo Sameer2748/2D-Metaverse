@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+"use client";
+import React, { useEffect, useState } from "react";
 import { SlCalender } from "react-icons/sl";
 import { BsStars } from "react-icons/bs";
 import { useRecoilState } from "recoil";
-import { userState } from "../store/userAtom";
+import { avatarState, userState } from "../store/userAtom";
 import { MdEdit } from "react-icons/md";
 import Button from "./ui/Button";
 import { toast } from "sonner";
@@ -12,6 +13,7 @@ import { ElementCreation, MapCreation, SpaceCreation } from "./CreateElement";
 
 const DashNav = () => {
   const [user, setUser] = useRecoilState(userState);
+  const [avatar, setAvatar] = useRecoilState(avatarState);
   const [hover, setHover] = useState(false);
   const [EditCh, setEditCh] = useState(false);
   const [name, setName] = useState("");
@@ -22,6 +24,22 @@ const DashNav = () => {
   const [showMapCreate, setShowMapCreate] = useState(false);
   const [createSpace, setCreateSpace] = useState(false);
   const [openJoinSpace, setOpenJoinSpace] = useState(false);
+  const [allAvatars, setAvatars] = useState([]);
+  const [newAvatarId, setNewAvatarId] = useState("");
+  const [showAvatarSelection, setshowAvatarSelection] = useState(false);
+
+  useEffect(() => {
+    const fetch = async () => {
+      const token = await localStorage.getItem("token");
+      if (!token) {
+        navigate("/signIn");
+      }
+
+      const avatars = await axios.get("http://localhost:3000/api/v1/avatars");
+      setAvatars(avatars.data.avatars);
+    };
+    fetch();
+  }, []);
 
   const update = async () => {
     try {
@@ -33,6 +51,7 @@ const DashNav = () => {
         },
         { headers: { Authorization: `${localStorage.getItem("token")}` } }
       );
+
       setUser(res.data.user);
       toast("updated successfully");
       setName("");
@@ -50,15 +69,44 @@ const DashNav = () => {
     navigate("/signUp");
   };
 
+  const handleUpdateAvatar = async () => {
+    try {
+      if (!newAvatarId) {
+        toast("Please select an avatar");
+        return;
+      }
+      const update = await axios.post(
+        "http://localhost:3000/api/v1/user/avatar",
+        {
+          avatarId: newAvatarId,
+        },
+        {
+          headers: {
+            Authorization: localStorage.getItem("token"),
+          },
+        }
+      );
+
+      if (update) {
+        setAvatar(update.data.avatar);
+        toast("Avatar updated successfully");
+        setNewAvatarId("");
+        setshowAvatarSelection(false);
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
   return (
     <div
-      className="w-full h-[10vh]  flex justify-between items-center"
+      className="w-full h-[10vh]  flex justify-between items-center text-white"
       style={{ backgroundColor: "rgb(54, 58, 89)" }}
     >
       {/* Left Navigation Section */}
       <div className="w-[35%] flex justify-between items-center gap-2">
         <div className="ml-6">
-          <p className="text-xl">Gather</p>
+          <p className="text-xl text-white">Gather</p>
         </div>
         <div className="w-[100px] h-[40px] flex justify-center items-center gap-2 hover:bg-gray-200 p-1 rounded-xl hover:text-black cursor-pointer">
           <SlCalender />
@@ -75,12 +123,12 @@ const DashNav = () => {
         {/* Username and Avatar Section */}
         <div
           onClick={() => setHover((prev) => !prev)}
-          className="w-[70%] p-2 flex justify-center items-center gap-2 hover:bg-gray-200 p-1 rounded-xl hover:text-black cursor-pointer"
+          className="w-[70%] p-2 flex justify-center  items-center gap-2 hover:bg-gray-200 p-1 rounded-xl hover:text-black cursor-pointer"
         >
           <img
-            src=""
+            src={avatar.imageUrl}
             alt="User Avatar"
-            className="rounded-full w-[20px] h-[20px]"
+            className="rounded-full w-[30px] h-[30px] "
           />
           <p className="text-lg font-semibold">{user?.name}</p>
         </div>
@@ -104,12 +152,12 @@ const DashNav = () => {
               <p className="">{user?.username}</p>
             </div>
             <div className="h-[2px] rounded-xl  bg-white"></div>
-            <h1
+            {/* <h1
               className="cursor-pointer text-WHITE  hover:font-semibold"
-              onClick={() => alert("Edit Name Clicked")}
+              onClick={() => setshowAvatarSelection(true)}
             >
               Edit Avatar
-            </h1>
+            </h1> */}
             <h1
               className="cursor-pointer text-WHITE  hover:font-semibold"
               onClick={handleLogout}
@@ -322,6 +370,35 @@ const DashNav = () => {
           <>
             <SpaceCreation onClick={() => setCreateSpace((prev) => !prev)} />
           </>
+        )}
+        {showAvatarSelection && (
+          <div className="fixed top-0 left-0 w-full h-full bg-black opacity-50 z-20">
+            {/* Centered Popup */}
+            <div
+              className="fixed top-1/2 left-1/2 w-[436px]  h-[250px] flex flex-col justify-center items-center gap-2 shadow-lg  rounded-xl z-30"
+              style={{
+                backgroundColor: "rgb(84, 92, 143)",
+                transform: "translate(-50%, -50%)",
+              }}
+            >
+              <div className="flex justify-center gap-10">
+                {allAvatars.map((av) => (
+                  <img
+                    className={`w-[70px] h-[70px] rounded-full ${newAvatarId === av.id ? "border-4 border-green-700" : ""} `}
+                    onClick={() => setNewAvatarId(av.id)}
+                    src={av.imageUrl}
+                    alt=""
+                  />
+                ))}
+              </div>
+              <button
+                className="bg-green-600 w-[80%]  rounded-xl p-2 mt-10"
+                onClick={handleUpdateAvatar}
+              >
+                Update Avatar
+              </button>
+            </div>
+          </div>
         )}
         <button
           className="bg-green-600 w-[100%] rounded-xl p-2"

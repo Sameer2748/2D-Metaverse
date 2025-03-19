@@ -94,7 +94,7 @@ const Bottom = ({
           {localMediaState.audio ? (
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-6 w-6"
+              className="h-6 w-6 text-black"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -136,7 +136,7 @@ const Bottom = ({
           {localMediaState.video ? (
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-6 w-6"
+              className="h-6 w-6 text-black"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"

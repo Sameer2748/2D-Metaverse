@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
 import { useRecoilState } from "recoil";
@@ -85,6 +85,10 @@ const Space = () => {
       y: number;
     }[];
   } | null>(null);
+  const [meetingOne, setMeetingOne] = useState(false);
+  // Add these refs to your component
+  const activeConnectionsRef = useRef({});
+  const activeCallsRef = useRef({});
 
   // Add this to your component
   const isMeetingRoom = (x: number, y: number) => {
@@ -108,78 +112,107 @@ const Space = () => {
 
   //  peer connection to all user ion the chat room
   useEffect(() => {
-    if (inMeetingRoom) {
-      // Connect to all users in the meeting room
+    // Only set up connections when first entering the meeting room
+    // or when new users join (meetingRoomUsers changes)
+    if (inMeetingRoom && peerInstanceRef.current) {
+      // Keep track of connected peers to avoid duplicate connections
+      const connectedPeers = new Set(
+        Object.keys(activeConnectionsRef.current || {})
+      );
+
       Object.values(meetingRoomUsers).forEach((roomUser) => {
         // Skip if it's the current user or already connected
-        if (roomUser.userId === user?.id) return;
+        if (roomUser.userId === user?.id || !roomUser.peerId) return;
+        if (connectedPeers.has(roomUser.peerId)) return;
 
         // Create peer connection
         const conn = peerInstanceRef.current.connect(roomUser.peerId);
+
         conn.on("open", async () => {
           try {
-            // Get media stream
-            const stream = await navigator.mediaDevices.getUserMedia({
-              video: true,
-              audio: true,
-            });
+            // Store connection for later reference
+            activeConnectionsRef.current = {
+              ...activeConnectionsRef.current,
+              [roomUser.peerId]: conn,
+            };
 
-            // Store stream for later use
-            localStreamRef.current = stream;
+            // Get media stream (reuse existing if available)
+            let stream = localStreamRef.current;
+            if (!stream) {
+              stream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true,
+              });
 
-            // Display local video
-            if (localVideoRef.current) {
-              localVideoRef.current.srcObject = stream;
+              // Store stream for later use
+              localStreamRef.current = stream;
+
+              // Display local video if element exists
+              if (localVideoRef.current) {
+                localVideoRef.current.srcObject = stream;
+              }
             }
 
             // Call the other user
             const call = peerInstanceRef.current.call(roomUser.peerId, stream);
 
+            // Store call reference to avoid it being garbage collected
+            activeCallsRef.current = {
+              ...activeCallsRef.current,
+              [roomUser.peerId]: call,
+            };
+
             // Handle incoming stream
             call.on("stream", (remoteStream) => {
-              // Create or find video element for this user
-              let videoEl = document.getElementById(
-                `meeting-video-${roomUser.userId}`
-              );
-              if (!videoEl) {
-                videoEl = document.createElement("video");
-                videoEl.id = `meeting-video-${roomUser.userId}`;
-                videoEl.autoplay = true;
-                document
-                  .getElementById("meeting-videos-container")
-                  .appendChild(videoEl);
-              }
+              // Add this user's stream to our meetingRoomUsers state
+              // This will make it accessible to VideoGrid even when hidden
+              const updatedUsers = {
+                ...meetingRoomUsers,
+                [roomUser.userId]: {
+                  ...roomUser,
+                  stream: remoteStream,
+                },
+              };
 
-              videoEl.srcObject = remoteStream;
+              // Update your state that manages meetingRoomUsers
+              setMeetingRoomUsers(updatedUsers);
             });
           } catch (error) {
             console.error("Error setting up meeting room call:", error);
           }
         });
       });
-    } else {
-      // Clean up video connections when leaving meeting room
-      // (similar to your existing endCall function)
-      const meetingVideosContainer = document.getElementById(
-        "meeting-videos-container"
-      );
-      if (meetingVideosContainer) {
-        const videoElements =
-          meetingVideosContainer.querySelectorAll("video:not([muted])");
-        videoElements.forEach((videoEl) => {
-          if (videoEl.srcObject) {
-            const stream = videoEl.srcObject;
-            if (stream instanceof MediaStream) {
-              stream.getTracks().forEach((track) => track.stop());
-            }
-            videoEl.srcObject = null;
-          }
-          if (videoEl.id !== "local-video") {
-            videoEl.remove();
-          }
-        });
-      }
     }
+
+    // Only clean up connections when actually leaving the meeting room
+    // NOT when just hiding the UI
+    return () => {
+      if (!inMeetingRoom) {
+        // Clean up connections
+        if (activeConnectionsRef.current) {
+          Object.values(activeConnectionsRef.current).forEach((conn) => {
+            conn.close();
+          });
+        }
+
+        // Clean up calls
+        if (activeCallsRef.current) {
+          Object.values(activeCallsRef.current).forEach((call) => {
+            call.close();
+          });
+        }
+
+        // Clean up stream
+        if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach((track) => track.stop());
+          localStreamRef.current = null;
+        }
+
+        // Reset references
+        activeConnectionsRef.current = {};
+        activeCallsRef.current = {};
+      }
+    };
   }, [inMeetingRoom, meetingRoomUsers]);
 
   // Function to toggle local audio
@@ -355,6 +388,9 @@ const Space = () => {
           }
         );
         setSpaceDetails(response.data);
+        if (response.data.elements.length > 500) {
+          setMeetingOne(true);
+        }
 
         const res = await axios.post(
           `http://localhost:3000/api/v1/user/${response.data.creatorId}`,
@@ -654,12 +690,21 @@ const Space = () => {
       return;
     }
 
-    // Check meeting room status for previous and new positions
-    const wasInMeetingRoom = userPosition.inMeetingRoom;
-    const nowInMeetingRoom = isMeetingRoom(newPosition.x, newPosition.y);
+    // Check physical meeting room status for previous and new positions
+    const wasInMeetingRoomPhysically = isMeetingRoom(
+      userPosition.x,
+      userPosition.y
+    );
+    const nowInMeetingRoomPhysically = isMeetingRoom(
+      newPosition.x,
+      newPosition.y
+    );
+
+    // Update the inMeetingRoom flag in position but don't change the actual state yet
+    newPosition.inMeetingRoom = nowInMeetingRoomPhysically;
 
     // Update user position and direction
-    setUserPosition({ ...newPosition, inMeetingRoom: nowInMeetingRoom });
+    setUserPosition(newPosition);
     setUserDirection(newDirection);
 
     // Send movement data
@@ -671,46 +716,61 @@ const Space = () => {
           y: newPosition.y,
           direction: newDirection,
           peerId,
+          inMeetingRoom: nowInMeetingRoomPhysically,
         },
       })
     );
 
     // Handle meeting room entry/exit - only send once when crossing the boundary
-    if (nowInMeetingRoom !== wasInMeetingRoom) {
-      if (nowInMeetingRoom) {
-        // Entering the meeting room
-        sendMessage(
-          JSON.stringify({
-            type: "enter-meeting-room",
-            payload: {
-              userId: user.id,
-              name: user.name,
-              peerId: peerId,
-              spaceId: spaceId,
-            },
-          })
-        );
+    if (meetingOne) {
+      if (nowInMeetingRoomPhysically !== wasInMeetingRoomPhysically) {
+        if (nowInMeetingRoomPhysically) {
+          // Entering the meeting room area
+          sendMessage(
+            JSON.stringify({
+              type: "enter-meeting-room",
+              payload: {
+                userId: user.id,
+                name: user.name,
+                peerId: peerId,
+                spaceId: spaceId,
+              },
+            })
+          );
 
-        // End any active one-to-one call when entering meeting room
-        if (activeCall) {
-          endCall();
+          // Update the inMeetingRoom state
+          setInMeetingRoom(true);
+
+          // End any active one-to-one call when entering meeting room
+          if (activeCall) {
+            endCall();
+          }
+        } else {
+          // Only send leave-meeting-room when physically leaving the area
+          sendMessage(
+            JSON.stringify({
+              type: "leave-meeting-room",
+              payload: {
+                userId: user.id,
+                spaceId: spaceId,
+              },
+            })
+          );
+
+          // Update the inMeetingRoom state
+          setInMeetingRoom(false);
+
+          // Reset the meeting room UI state when leaving the area
+          setShowMeetingRoom(false);
         }
-      } else {
-        // Leaving the meeting room
-        sendMessage(
-          JSON.stringify({
-            type: "leave-meeting-room",
-            payload: {
-              userId: user.id,
-              spaceId: spaceId,
-            },
-          })
-        );
       }
     }
 
     // Handle one-to-one calls when outside the meeting room
-    if (!nowInMeetingRoom) {
+    if (nowInMeetingRoomPhysically) {
+      // In meeting room - don't manage one-to-one calls here
+    } else {
+      // Outside meeting room - handle one-to-one calls
       const facingUsers = checkFacingUsers(
         { ...newPosition, direction: newDirection, userId: user.id },
         usersPositions
@@ -1032,7 +1092,7 @@ const Space = () => {
 
   if (!spaceDetails) {
     return (
-      <div className="w-full h-screen flex justify-center items-center text-xl font-semibold">
+      <div className="w-full h-screen flex justify-center items-center text-xl font-semibold bg-gray-600 text-white">
         Loading space details...
       </div>
     );
@@ -1046,7 +1106,7 @@ const Space = () => {
   };
 
   return (
-    <div className="flex flex-col justify-between items-center h-screen bg-[#545c8f] p-6 pb-0">
+    <div className="flex flex-col justify-between items-center h-screen bg-[#545c8f] p-6 pb-0 text-white">
       {/* top div for showing videos for remote user  */}
       <Topbar
         hoveredName={hoveredName}
@@ -1259,8 +1319,9 @@ const Space = () => {
           handleMeetingRoomChatSubmit={handleMeetingRoomChatSubmit}
           sendMessage={sendMessage}
           localVideoRef={localVideoRef}
-          hidemeetingroom={() => setInMeetingRoom(false)}
+          hidemeetingroom={() => setShowMeetingRoom(false)}
           setShowMeetingRoom={() => setShowMeetingRoom(false)}
+          setInMeetingRoom={setInMeetingRoom}
         />
       )}
 

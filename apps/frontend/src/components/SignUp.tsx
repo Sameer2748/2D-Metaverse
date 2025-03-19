@@ -10,8 +10,10 @@ const SignUp = () => {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [type, setType] = useState("user");
+  const [avatarId, setAvatarId] = useState(null);
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
+  const [avatars, setAvatars] = useState([]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     setloading(true);
@@ -26,6 +28,7 @@ const SignUp = () => {
         username,
         password,
         type,
+        avatarId,
       });
       console.log(user);
       toast("logged in successfully");
@@ -44,13 +47,16 @@ const SignUp = () => {
       if (token) {
         navigate("/dashboard");
       }
+
+      const avatars = await axios.get("http://localhost:3000/api/v1/avatars");
+      setAvatars(avatars.data.avatars);
     };
     fetch();
   }, []);
 
   return (
     <div className="w-full h-screen flex justify-center items-center bg-logbg">
-      <div className="w-[450px] h-[500px] bg-white text-black flex flex-col  items-center rounded-xl p-2">
+      <div className="w-[450px] h-[540px] bg-white text-black flex flex-col  items-center rounded-xl p-2">
         <div className="flex gap-16 pt-6">
           <img
             className=" animate-bounce"
@@ -119,6 +125,17 @@ const SignUp = () => {
                   <IoEyeOutline size={20} />
                 )}
               </p>
+            </div>
+            <div className="flex gap-2 justify-center items-center mt-2">
+              {avatars.map((avatar) => (
+                <img
+                  key={avatar.id}
+                  className={`w-[50px] h-[50px] cursor-pointer border-2 border-gray-600 ${avatar.id === avatarId ? "border-3 border-green-600" : "text-black"} p-1 rounded-xl flex justify-center items-center `}
+                  src={avatar.imageUrl}
+                  alt=""
+                  onClick={() => setAvatarId(avatar.id)}
+                />
+              ))}
             </div>
           </div>
           {/* <p className='text-[20px] mt-3 mb-3'>Type</p>

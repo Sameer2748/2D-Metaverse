@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import DashNav from "./DashNav";
 import { useRecoilState } from "recoil";
-import { userState } from "../store/userAtom";
+import { avatarState, userState } from "../store/userAtom";
 import axios from "axios";
 import { spaceState } from "../store/spaceAtom";
 import { toast } from "sonner";
@@ -11,18 +11,18 @@ import { useNavigate } from "react-router-dom";
 
 const DashBoard = () => {
   const [user, setUser] = useRecoilState(userState);
+  const [avatar, setAvatar] = useRecoilState(avatarState);
   const [spaces, setSpaces] = useRecoilState(spaceState);
   const [DeleteModal, setDeleteModal] = useState(false);
   const [selectedSpaceid, setSelectedSpaceid] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
-
     const fetch = async () => {
-      const token  = await localStorage.getItem("token")
+      const token = await localStorage.getItem("token");
 
-      if(!token){
-        navigate("/")
+      if (!token) {
+        navigate("/");
       }
 
       const res = await axios.get(
@@ -34,6 +34,7 @@ const DashBoard = () => {
       });
       setSpaces(res2.data.spaces);
       setUser(res.data.user);
+      setAvatar(res.data.avatar);
       console.log(res2.data.spaces);
     };
     fetch();
@@ -62,48 +63,47 @@ const DashBoard = () => {
       await setSpaces(spaces.filter((s) => s.id !== spaceId)); // Remove deleted space from the state
       toast("Space deleted successfully");
       setDeleteModal(false);
-    setSelectedSpaceid("");
+      setSelectedSpaceid("");
     } catch (error) {
       toast("Error deleting");
     }
   };
 
   return (
-    <div className="bg-Hero w-full h-screen bg-[#282d4e]">
+    <div className="bg-Hero w-full h-screen bg-[#282d4e] text-white">
       <DashNav />
       {/* Content */}
       <div className="w-[100%] h-[80%] grid grid-cols-12  p-8 justify-center gap-3 ">
-        {
-          spaces.length >0 ?(
-              spaces.map((space) => (
-                <div
-                  key={space?.id}
-                  className="col-span-12 md:col-span-6 lg:col-span-4 h-[300px] p-2 "
+        {spaces.length > 0 ? (
+          spaces.map((space) => (
+            <div
+              key={space?.id}
+              className="col-span-12 md:col-span-6 lg:col-span-4 h-[300px] p-2 "
+            >
+              <div className="w-full h-[80%] ">
+                <img
+                  onClick={() => navigate(`/space/${space?.id}`)}
+                  className="w-full h-full rounded-xl hover:border-4 hover:border-[#545c8f] cursor-pointer "
+                  src={`${space?.thumbnail}`}
+                  alt=""
+                />
+              </div>
+              <div className="flex w-full justify-between items-center p-2">
+                <h1>{space?.name}</h1>
+                <p
+                  onClick={() => HandleOpenDelete(space?.id)}
+                  className="cursor-pointer"
                 >
-                  <div className="w-full h-[80%] ">
-                    <img onClick={()=> navigate(`/space/${space?.id}`)}
-                      className="w-full h-full rounded-xl hover:border-4 hover:border-[#545c8f] cursor-pointer "
-                      src={`${space?.thumbnail}`}
-                      alt=""
-                    />
-                  </div>
-                  <div className="flex w-full justify-between items-center p-2">
-                    <h1>{space?.name}</h1>
-                    <p
-                      onClick={() => HandleOpenDelete(space?.id)}
-                      className="cursor-pointer"
-                    >
-                      <RiDeleteBin7Line width={40} height={40} />
-                    </p>
-                  </div>
-                </div>
-              )) || <p>Loading...</p> // Display loading message while data is being fetched
-          ):(
-            <div className="w-[95vw] h-full flex justify-center items-center">
-            <p>No Space Found! Create New Space.</p>
+                  <RiDeleteBin7Line width={40} height={40} />
+                </p>
+              </div>
             </div>
-          )
-        }
+          )) || <p>Loading...</p> // Display loading message while data is being fetched
+        ) : (
+          <div className="w-[95vw] h-full flex justify-center items-center">
+            <p>No Space Found! Create New Space.</p>
+          </div>
+        )}
       </div>
 
       {DeleteModal && (
@@ -116,10 +116,24 @@ const DashBoard = () => {
               transform: "translate(-50%, -50%)",
             }}
           >
-            <p className="text-xl font-semibold">Are you sure you want to delete this Space?</p>
+            <p className="text-xl font-semibold">
+              Are you sure you want to delete this Space?
+            </p>
             <div className="w-[50%] flex justify-between items-center mt-4">
-            <Button text="Cancel" size="xl" color="black" classname="cursor-pointer" onClick={handleCancel} />
-            <Button text="Delete" size="xl" color="black" classname=" text-white cursor-pointer" onClick={() => handleDelete(selectedSpaceid)} />
+              <Button
+                text="Cancel"
+                size="xl"
+                color="black"
+                classname="cursor-pointer"
+                onClick={handleCancel}
+              />
+              <Button
+                text="Delete"
+                size="xl"
+                color="black"
+                classname=" text-white cursor-pointer"
+                onClick={() => handleDelete(selectedSpaceid)}
+              />
             </div>
           </div>
         </>
