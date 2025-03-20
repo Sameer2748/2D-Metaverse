@@ -1,5 +1,10 @@
 # 2d metaverse Project
 
+Space for teams to move with avatar.
+One to One Video call functionality when user face each other.
+Meeting room Option in left bottom room enter.
+let's work and have fun together.
+
 This repository is a **2d metaverse ** project that manages a monorepo structure with the following apps:
 
 1. **frontend** - A web application for the user interface. 
@@ -27,8 +32,7 @@ Each application is located in the `apps` folder and can be run independently or
 
 ```
 
----![Screenshot 2025-03-17 at 11 00 43 PM](https://github.com/user-attachments/assets/6162ad88-941a-4f06-8d30-45152122cfd1)
-
+---
 
 ## Prerequisites
 
