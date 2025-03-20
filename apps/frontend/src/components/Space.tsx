@@ -1376,7 +1376,7 @@ const Space = () => {
               <div className="bg-gradient-to-r from-[#454c77] to-[#383f66] p-4 border-b border-[#6c75b5]/50 shadow-sm">
                 <h1 className="text-center text-xl font-bold text-white tracking-wide">
                   <span className="mr-2">✨</span>
-                  Space Chat
+                  All Chat
                   <span className="ml-2">✨</span>
                 </h1>
               </div>
