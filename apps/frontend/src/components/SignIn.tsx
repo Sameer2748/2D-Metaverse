@@ -4,8 +4,12 @@ import { IoEyeOutline, IoEyeOffOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { BACKEND_URL } from "../config";
+import { useSetRecoilState } from "recoil";
+import { userState } from "../store/userAtom";
 
 const SignIn = () => {
+  const setUser = useSetRecoilState(userState);
+
   const [show, setShow] = useState(false);
   const [email, setEmail] = useState("");
   const [loading, setloading] = useState(false);
@@ -26,6 +30,10 @@ const SignIn = () => {
       console.log(user.data.token);
       await localStorage.setItem("token", `Bearer ${user.data.token}`);
 
+      const res = await axios.get(`${BACKEND_URL}/user/metadata`, {
+        headers: { authorization: `Bearer ${user.data.token}` },
+      });
+      setUser(res.data.user);
       navigate("/dashboard");
       setloading(false);
     } catch (error) {
