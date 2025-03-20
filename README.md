@@ -1,5 +1,10 @@
 # 2d metaverse Project
 
+1. Space for teams to move with avatar.
+2. One to One Video call functionality when user face each other.
+3. Meeting room Option in left bottom room enter.
+4. let's work and have fun together.
+
 This repository is a **2d metaverse ** project that manages a monorepo structure with the following apps:
 
 1. **frontend** - A web application for the user interface. 
@@ -23,7 +28,8 @@ Each application is located in the `apps` folder and can be run independently or
 │   └── ws            # WebSocket server
 ├── package.json      # Turborepo configuration
 ├── turbo.json        # Turborepo tasks and pipeline settings
-└── README.md         # Project documentation
+└── README.md         # Project documentation!(https://github.com/user-attachments/assets/78c4a8c4-b9c0-43ea-b23b-24888ed335ff)
+
 ```
 
 ---
