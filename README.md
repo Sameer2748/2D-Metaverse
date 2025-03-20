@@ -23,7 +23,8 @@ Each application is located in the `apps` folder and can be run independently or
 │   └── ws            # WebSocket server
 ├── package.json      # Turborepo configuration
 ├── turbo.json        # Turborepo tasks and pipeline settings
-└── README.md         # Project documentation
+└── README.md         # Project documentation![Screenshot 2025-03-17 at 11 00 43 PM](https://github.com/user-attachments/assets/78c4a8c4-b9c0-43ea-b23b-24888ed335ff)
+
 ```
 
 ---
