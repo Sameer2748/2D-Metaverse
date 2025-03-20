@@ -11,13 +11,12 @@ interface AvatarSprite {
 
 // Avatar Direction Enum
 enum AvatarDirection {
-    Front = "front",
-    Back = "back",
-    Left = "left",
-    Right = "right",
-  }
+  Front = "front",
+  Back = "back",
+  Left = "left",
+  Right = "right",
+}
 
-  
 // Default Avatar Sprite Configuration
 const defaultAvatarSprite: AvatarSprite = {
   imageUrl:
@@ -66,7 +65,7 @@ export const AnimatedAvatar: React.FC<{
   }, [sprite.animationFrames, isMoving]);
 
   // Calculate sprite sheet position based on direction and frame
-  const getSpritePosition = () => {
+  const getSpritePosition = (): React.CSSProperties => {
     let row = 0;
     switch (direction) {
       case AvatarDirection.Front:
@@ -131,7 +130,7 @@ export const AnimatedAvatar2: React.FC<{
   }, [sprite.animationFrames, isMoving]);
 
   // Calculate sprite sheet position based on direction and frame
-  const getSpritePosition = () => {
+  const getSpritePosition = (): React.CSSProperties => {
     let row = 0;
     switch (direction) {
       case AvatarDirection.Front:

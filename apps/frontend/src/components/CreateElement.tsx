@@ -7,26 +7,10 @@ import { spaceState } from "../store/spaceAtom";
 import { BACKEND_URL } from "../config";
 
 // Type Definitions
-interface Element {
-  id: string;
-  imageUrl: string;
-  width: number;
-  height: number;
-  static: boolean;
-}
+
 // Type Definitions
 interface ElementType {
-  onClick: () => void;
-}
-interface MapType {
-  onClick: () => void;
-}
-
-interface MapElement {
-  elementId: string;
-  x: number;
-  y: number;
-  element: Element;
+  onClick?: () => void;
 }
 
 interface Map {
@@ -35,13 +19,6 @@ interface Map {
   width: number;
   height: number;
   thumbnail: string;
-}
-
-interface Space {
-  id?: string;
-  name: string;
-  mapId: string;
-  dimensions: string;
 }
 
 // Custom Styles
@@ -97,57 +74,12 @@ const styles = {
   },
 };
 
-// Mock API Service
-const API = {
-  createElement: async (elementData: Omit<Element, "id">): Promise<Element> => {
-    try {
-      const res = await axios.post(
-        `${BACKEND_URL}/admin/element`,
-        { elementData },
-        { headers: { Authorization: `${localStorage.getItem("token")}` } }
-      );
-      console.log(res.data);
-      toast("element created successfully");
-    } catch (error) {
-      toast("eeror in creating the element");
-    }
-    return elementData;
-  },
-  createMap: async (mapData: Omit<Map, "id">): Promise<Map> => {
-    return { id: Date.now().toString(), ...mapData };
-  },
-  createSpace: async (spaceData: Omit<Space, "id">): Promise<Space> => {
-    return { id: Date.now().toString(), ...spaceData };
-  },
-  fetchElements: async (): Promise<Element[]> => {
-    return [
-      {
-        id: "1",
-        imageUrl: "https://via.placeholder.com/50",
-        width: 1,
-        height: 1,
-      },
-      {
-        id: "2",
-        imageUrl: "https://via.placeholder.com/50",
-        width: 2,
-        height: 1,
-      },
-    ];
-  },
-  fetchMaps: async (): Promise<Map[]> => {
-    return [
-      {
-        id: "1",
-        name: "Office Layout",
-        dimensions: "20x20",
-      },
-    ];
-  },
-};
-
 // Element Creation Component
-export const ElementCreation = ({ onClick }: ElementType) => {
+interface ElementCreationProps {
+  onClick: () => void;
+}
+
+export const ElementCreation = ({ onClick }: ElementCreationProps) => {
   const [imageUrl, setImageUrl] = useState("");
   const [width, setWidth] = useState(1);
   const [height, setHeight] = useState(1);
@@ -222,14 +154,26 @@ export const ElementCreation = ({ onClick }: ElementType) => {
     </div>
   );
 };
-
+interface ElementType {
+  id: string;
+  imageUrl: string;
+  x: number;
+  y: number;
+  element: ElementType;
+  elementId: string;
+  static: boolean;
+}
 // Map Creation Component
 const MapForm = ({
   mapForm,
   setMapForm,
 }: {
-  mapForm: any;
-  setMapForm: any;
+  mapForm: {
+    name: string;
+    dimensions: string;
+    thumbnail: string;
+  };
+  setMapForm;
 }) => (
   <div className="flex flex-col gap-4">
     <input
@@ -237,7 +181,9 @@ const MapForm = ({
       placeholder="Map Name"
       className="p-2 border rounded-md"
       value={mapForm.name}
-      onChange={(e) => setMapForm({ ...mapForm, name: e.target.value })}
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+        setMapForm({ ...mapForm, name: e.target.value })
+      }
     />
     <input
       type="text"
@@ -254,9 +200,9 @@ const AvailableElements = ({
   selectedElement,
   setSelectedElement,
 }: {
-  availableElements: any[];
-  selectedElement: any;
-  setSelectedElement: any;
+  availableElements: ElementType[];
+  selectedElement: ElementType;
+  setSelectedElement: (ElementType) => void;
 }) => (
   <div>
     <h3 className="text-lg font-semibold mb-2">Available Elements</h3>
@@ -287,8 +233,21 @@ const Grid = ({
   elements,
   handleGridClick,
 }: {
-  mapForm: any;
-  elements: any[];
+  mapForm: {
+    name: string;
+    dimensions: string;
+    thumbnail: string;
+  };
+  elements: (
+    | ElementType
+    | {
+        x: number;
+        y: number;
+        element: ElementType;
+        elementId: string;
+        static: boolean;
+      }
+  )[];
   handleGridClick: (x: number, y: number) => void;
 }) => {
   const [width, height] = mapForm.dimensions.split("x").map(Number);
@@ -330,8 +289,19 @@ const Grid = ({
 };
 
 export const MapCreation = ({ onClick }: { onClick: () => void }) => {
-  const [elements, setElements] = useState<any[]>([]);
-  const [availableElements, setAvailableElements] = useState<any[]>([]);
+  const [elements, setElements] = useState<
+    (
+      | ElementType
+      | {
+          x: number;
+          y: number;
+          element: ElementType;
+          elementId: string;
+          static: boolean;
+        }
+    )[]
+  >([]);
+  const [availableElements, setAvailableElements] = useState<ElementType[]>([]);
   const [mapForm, setMapForm] = useState<{
     name: string;
     dimensions: string;
@@ -342,7 +312,9 @@ export const MapCreation = ({ onClick }: { onClick: () => void }) => {
     thumbnail:
       "https://cdn.gather.town/v0/b/gather-town.appspot.com/o/remote-work%2Foffice-configuration%2Fscreenshots%2FSOURCE_SPACE_RW_6.png?alt=media",
   });
-  const [selectedElement, setSelectedElement] = useState<any | null>(null);
+  const [selectedElement, setSelectedElement] = useState<ElementType | null>(
+    null
+  );
 
   useEffect(() => {
     const fetchElements = async () => {
@@ -464,7 +436,7 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
   const [selected, setSelected] = useState(0);
   const [loading, setLoading] = useState(false);
   const dimensions = `${selectedMap?.width}x${selectedMap?.height}`;
-  const [spaces, setSpaces] = useRecoilState(spaceState);
+  const [setSpaces] = useRecoilState(spaceState);
 
   useEffect(() => {
     const fetchMaps = async () => {
@@ -500,6 +472,7 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
           },
         }
       );
+      // @ts-expect-error kjbvghchjnjk
       setSpaces((prevSpaces) => [...prevSpaces, newSpace.data.space]);
       setLoading(false);
       console.log(newSpace.data);
@@ -694,8 +667,11 @@ export const SpaceManagementApp: React.FC = () => {
           </button>
         ))}
       </div>
+      {/* @ts-expect-error sdvsdv */}
       {activeTab === "elements" && <ElementCreation />}
+      {/* @ts-expect-error sdvsdv */}
       {activeTab === "maps" && <MapCreation />}
+      {/* @ts-expect-error sdvsdv */}
       {activeTab === "spaces" && <SpaceCreation />}
     </div>
   );

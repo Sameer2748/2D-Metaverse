@@ -5,11 +5,17 @@ export enum AvatarDirection {
   Right = "right",
 }
 
+export interface DataConnection {
+  open: boolean;
+  send: (data: { type: string }) => void;
+  close: () => void;
+}
 export interface ChatMessage {
   userId: string;
   message: string;
   sender: string;
   timestamp: number;
+  username: string;
 }
 
 export interface MeetingRoomChatmessage {

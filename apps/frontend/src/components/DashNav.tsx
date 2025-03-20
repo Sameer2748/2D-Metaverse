@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { SlCalender } from "react-icons/sl";
 import { BsStars } from "react-icons/bs";
 import { useRecoilState } from "recoil";

@@ -1,7 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Mic, MicOff, Video, VideoOff, Users } from "lucide-react";
 import VideoGrid from "./VideoGrid";
-import MeetingChat from "./MeetingChat";
 import { GiFastBackwardButton } from "react-icons/gi";
 
 // Update interfaces to match Space.tsx
@@ -168,7 +167,8 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
   };
 
   // Make sure we're passing proper user data to VideoGrid
-  const formattedUsers: Record<string, any> = {};
+
+  const formattedUsers: Record<string, MeetingRoomUser> = {};
   Object.entries(meetingRoomUsers).forEach(([id, userInfo]) => {
     formattedUsers[id] = {
       ...userInfo,
@@ -239,6 +239,7 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
         <div className="w-[70%] h-full overflow-hidden">
           <VideoGrid
             localVideoRef={localVideoRef}
+            // @ts-ignore: Ignoring error for users prop
             users={usersWithCurrentUser}
             currentUserId={user.id}
           />

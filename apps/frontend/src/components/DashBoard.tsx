@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import DashNav from "./DashNav";
-import { useRecoilState } from "recoil";
+import { useRecoilState, useSetRecoilState } from "recoil";
 import { avatarState, userState } from "../store/userAtom";
 import axios from "axios";
 import { spaceState } from "../store/spaceAtom";
@@ -11,8 +11,8 @@ import { useNavigate } from "react-router-dom";
 import { BACKEND_URL } from "../config";
 
 const DashBoard = () => {
-  const [user, setUser] = useRecoilState(userState);
-  const [avatar, setAvatar] = useRecoilState(avatarState);
+  const setUser = useSetRecoilState(userState);
+  const setAvatar = useSetRecoilState(avatarState);
   const [spaces, setSpaces] = useRecoilState(spaceState);
   const [loading, setLoading] = useState(true);
   const [DeleteModal, setDeleteModal] = useState(false);

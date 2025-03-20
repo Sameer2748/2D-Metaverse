@@ -1,4 +1,3 @@
-import React from "react";
 import { useRecoilValue } from "recoil";
 import { userState } from "../store/userAtom";
 
@@ -9,10 +8,10 @@ interface ChatMessage {
 }
 interface chatProps {
   chatMessages: ChatMessage[];
-  chatEndRef: HTMLDivElement;
+  chatEndRef: React.LegacyRef<HTMLDivElement>;
   handleChatSubmit: () => void;
   chatInput: string;
-  setChatInput: () => void;
+  setChatInput: (value: string) => void;
 }
 const ChatBox = ({
   chatMessages,
@@ -22,7 +21,6 @@ const ChatBox = ({
   handleChatSubmit,
 }: chatProps) => {
   const user = useRecoilValue(userState);
-  console.log(chatMessages);
 
   return (
     <>

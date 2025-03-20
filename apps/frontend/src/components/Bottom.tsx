@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { MediaState } from "../libs/types";
 
 interface Bottomprops {
-  user: object;
+  user: { name; username };
   toggleLocalAudio: () => void;
   localMediaState: MediaState;
   toggleLocalVideo: () => void;

@@ -1,11 +1,19 @@
 import React from "react";
 import { MediaState } from "../libs/types";
 
+interface spaceDetails {
+  name: string;
+  width: number;
+  height: number;
+  mapId: number;
+  thumbnail: string;
+}
+
 interface TopBarProps {
   hoveredName: boolean;
-  spaceDetails: any;
-  setHoveredName: () => void;
-  spaceDetailss: any;
+  spaceDetails: spaceDetails;
+  setHoveredName: (boolean) => void;
+  spaceDetailss: spaceDetails;
   inMeetingRoom: boolean;
   showOtheruser: boolean;
   localVideoRef: React.RefObject<HTMLVideoElement>;

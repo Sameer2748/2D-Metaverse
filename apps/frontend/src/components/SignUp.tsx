@@ -10,7 +10,8 @@ const SignUp = () => {
   const [loading, setloading] = useState(false);
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
-  const [type, setType] = useState("user");
+
+  // const [type, setType] = useState("user");
   const [avatarId, setAvatarId] = useState(null);
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
@@ -28,7 +29,7 @@ const SignUp = () => {
         name,
         username,
         password,
-        type,
+        type: "user",
         avatarId,
       });
       console.log(user);

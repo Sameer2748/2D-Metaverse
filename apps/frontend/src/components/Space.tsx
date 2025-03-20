@@ -90,6 +90,7 @@ const Space = () => {
   // Add these refs to your component
   const activeConnectionsRef = useRef({});
   const activeCallsRef = useRef({});
+  // const [isAvailable, setisAvailable] = useState(false);
 
   // Add this to your component
   const isMeetingRoom = (x: number, y: number) => {
@@ -192,14 +193,16 @@ const Space = () => {
         // Clean up connections
         if (activeConnectionsRef.current) {
           Object.values(activeConnectionsRef.current).forEach((conn) => {
-            conn.close();
+            // conn.close();
+            (conn as { close: () => void }).close();
           });
         }
 
         // Clean up calls
         if (activeCallsRef.current) {
           Object.values(activeCallsRef.current).forEach((call) => {
-            call.close();
+            // call.close();
+            (call as { close: () => void }).close();
           });
         }
 
@@ -430,7 +433,7 @@ const Space = () => {
           setUserPosition(message.payload.spawn);
 
           // Set other users' positions, explicitly excluding the current user
-          setUsersPositions((prev) => {
+          setUsersPositions(() => {
             const updatedPositions: { [key: string]: UserPositionInfo } = {};
 
             message.payload.newUserPositions.forEach((userPos) => {
@@ -775,7 +778,7 @@ const Space = () => {
 
       if (facingUsers.length > 0) {
         if (!activeCall) {
-          startCall(peerId, facingUsers[0].peerId);
+          startCall(facingUsers[0].peerId);
         }
       } else if (activeCall) {
         endCall();
@@ -789,7 +792,7 @@ const Space = () => {
       const videoDevice = await getVideoDevice();
 
       if (!videoDevice) {
-        setisAvailable(false);
+        // setisAvailable(false);
         console.log("No video device available. Please check your hardware.");
         return;
       }
@@ -803,7 +806,7 @@ const Space = () => {
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      setisAvailable(true);
+      // setisAvailable(true);
 
       // Set the local stream to local video element
       if (videoref.current) {
@@ -844,7 +847,7 @@ const Space = () => {
     return null;
   };
 
-  const startCall = async (from: string, to: string) => {
+  const startCall = async (to: string) => {
     const videoDevice = await getVideoDevice();
 
     if (!videoDevice) {
@@ -918,7 +921,7 @@ const Space = () => {
         });
       });
 
-      conn.on("data", (data) => {
+      conn.on("data", (data: { type: string; audio; video }) => {
         if (data.type === "end-call") {
           endCall();
         } else if (data.type === "media-state-change") {
@@ -939,7 +942,7 @@ const Space = () => {
     console.log("Ending call");
 
     // Stop local video stream
-    const localStream = localVideoRef.current?.srcObject;
+    const localStream = localVideoRef.current?.srcObject as MediaStream | null;
     if (localStream) {
       localStream.getTracks().forEach((track) => {
         track.stop();
@@ -1005,7 +1008,7 @@ const Space = () => {
         setIsInitialized(true); // Mark Peer as initialized
       });
       peer.on("connection", (conn) => {
-        conn.on("data", (data) => {
+        conn.on("data", (data: { type: string; audio; video }) => {
           if (data.type === "end-call") {
             endCall();
           } else if (data.type === "media-state-change") {
@@ -1078,7 +1081,7 @@ const Space = () => {
 
       // If we're facing users and don't have an active call, start one
       if (facingUsers.length > 0 && !activeCall) {
-        startCall(peerId, facingUsers[0].peerId);
+        startCall(facingUsers[0].peerId);
       }
       // If we're not facing any users but have an active call, end it
       else if (facingUsers.length === 0 && activeCall) {
