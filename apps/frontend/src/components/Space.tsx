@@ -22,6 +22,8 @@ const Space = () => {
   const token = localStorage.getItem("token");
   const wstoken = token?.split(" ")[1];
   const {
+    popup,
+    setShowPopup,
     userPosition,
     setUserPosition,
     userDirection,
@@ -1106,7 +1108,7 @@ const Space = () => {
   };
 
   return (
-    <div className="flex flex-col justify-between items-center h-screen bg-[#545c8f] p-6 pb-0 text-white">
+    <div className="flex flex-col justify-between items-center h-screen bg-slate-900 p-6 pb-0 text-white">
       {/* top div for showing videos for remote user  */}
       <Topbar
         hoveredName={hoveredName}
@@ -1120,6 +1122,122 @@ const Space = () => {
         remoteVideoRef={remoteVideoRef}
         remoteMediaState={remoteMediaState}
       />
+      {popup && (
+        <div className="w-full h-full fixed top-0 left-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50">
+          <div className="bg-[#545c8f] p-6 rounded-xl max-w-3xl relative shadow-2xl border border-[#6c75b5]/30">
+            {/* Close button */}
+            <button
+              onClick={() => setShowPopup(false)}
+              className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+
+            {/* Header */}
+            <h1 className="text-4xl font-bold text-white mb-4">
+              Welcome to Metaverse
+            </h1>
+
+            <p className="text-[#d8daf0] mb-8 text-lg">
+              This is a virtual space where you can play, chat, and interact
+              with other users. Click on the elements in the grid to see their
+              images.
+            </p>
+
+            {/* Instructions */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <div className="bg-[#454c77] p-4 rounded-lg border border-[#6c75b5]/50">
+                <h2 className="text-xl font-bold text-[#a9aed8] mb-2">
+                  Navigation
+                </h2>
+                <p className="text-[#d8daf0] mb-2">Move with arrow keys</p>
+                <div className="bg-[#3e4469] p-3 rounded flex justify-center">
+                  <div className="grid grid-cols-3 grid-rows-3 gap-1">
+                    <div></div>
+                    <div className="bg-[#646ca3] p-2 rounded flex justify-center items-center">
+                      ↑
+                    </div>
+                    <div></div>
+                    <div className="bg-[#646ca3] p-2 rounded flex justify-center items-center">
+                      ←
+                    </div>
+                    <div className="bg-[#646ca3] p-2 rounded flex justify-center items-center">
+                      ↓
+                    </div>
+                    <div className="bg-[#646ca3] p-2 rounded flex justify-center items-center">
+                      →
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[#454c77] p-4 rounded-lg border border-[#6c75b5]/50">
+                <h2 className="text-xl font-bold text-[#a9aed8] mb-2">
+                  Video Chat
+                </h2>
+                <p className="text-[#d8daf0] mb-2">
+                  Face each other to connect, move away to disconnect
+                </p>
+                <div className="bg-[#3e4469] p-3 rounded flex justify-center items-center h-24">
+                  <div className="flex space-x-6">
+                    <div className="w-8 h-8 bg-[#7980b7] rounded-full flex items-center justify-center">
+                      <span>👤</span>
+                    </div>
+                    <div className="w-8 h-8 bg-[#3e4469] rounded-full flex items-center justify-center">
+                      <span>👤</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[#454c77] p-4 rounded-lg border border-[#6c75b5]/50">
+                <h2 className="text-xl font-bold text-[#a9aed8] mb-2">
+                  Meeting Room
+                </h2>
+                <p className="text-[#d8daf0] mb-2">
+                  Go to bottom left room to enter meeting space
+                </p>
+                <div className="bg-[#3e4469] p-3 rounded flex justify-center items-center h-24">
+                  <div className="grid grid-cols-3 grid-rows-3 gap-1 w-full h-full">
+                    <div className="bg-[#454c77] rounded"></div>
+                    <div className="bg-[#454c77] rounded"></div>
+                    <div className="bg-[#454c77] rounded"></div>
+                    <div className="bg-[#454c77] rounded"></div>
+                    <div className="bg-[#454c77] rounded"></div>
+                    <div className="bg-[#454c77] rounded"></div>
+                    <div className="bg-[#7980b7] rounded animate-pulse"></div>
+                    <div className="bg-[#454c77] rounded"></div>
+                    <div className="bg-[#454c77] rounded"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Get started button */}
+            <div className="flex justify-center">
+              <button
+                onClick={() => setShowPopup(false)}
+                className="px-6 py-3 bg-[#7980b7] rounded-full text-white font-bold hover:bg-[#8b92c9] transform hover:scale-105 transition-all duration-200 shadow-lg"
+              >
+                Enter Metaverse
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* game grid and chat div */}
       <div className="flex w-full h-5/6 gap-6 flex justify-between items-center">
@@ -1250,61 +1368,126 @@ const Space = () => {
         </div>
 
         {/* Chat Interface - Right Side */}
+        {/* Chat Interface - Right Side */}
         {showChat ? (
-          <div className="w-[35%] h-full ">
-            {/* <h1 className="text-center text-xl mb-2">Space Chat</h1> */}
-            <div className="w-[100%] h-[100%] bg-gray-800 rounded-lg flex flex-col ">
-              <div className="flex-grow overflow-y-auto p-2 space-y-2">
+          <div className="w-[35%] h-full">
+            <div className="w-[100%] h-[100%] bg-gradient-to-br from-[#545c8f] to-[#3e4469] rounded-xl flex flex-col shadow-xl border border-[#6c75b5]/30 overflow-hidden">
+              {/* Chat Header */}
+              <div className="bg-gradient-to-r from-[#454c77] to-[#383f66] p-4 border-b border-[#6c75b5]/50 shadow-sm">
+                <h1 className="text-center text-xl font-bold text-white tracking-wide">
+                  <span className="mr-2">✨</span>
+                  Space Chat
+                  <span className="ml-2">✨</span>
+                </h1>
+              </div>
+
+              {/* Messages Area with subtle background pattern */}
+              <div
+                className="flex-grow overflow-y-auto p-4 space-y-4 bg-[#4a5180]/90"
+                style={{
+                  backgroundImage:
+                    "radial-gradient(circle at 20px 20px, rgba(108, 117, 181, 0.1) 4px, transparent 0)",
+                  backgroundSize: "40px 40px",
+                }}
+              >
                 {chatMessages.map((msg, index) => {
                   const isSelf =
                     msg.userId === user?.id || msg.userId === user?.userId;
                   return (
                     <div
                       key={index}
-                      className={`p-2 rounded-lg ${
+                      className={`p-1 ${
                         isSelf
-                          ? " text-white w-full flex justify-end items-center"
-                          : " text-white w-full flex justify-start items-center"
+                          ? "w-full flex justify-end items-end"
+                          : "w-full flex justify-start items-end"
                       }`}
                     >
+                      {/* Avatar for others' messages */}
+                      {!isSelf && (
+                        <div className="w-8 h-8 rounded-full bg-[#7980b7] flex items-center justify-center mr-2 text-xs font-bold text-white border-2 border-[#8b92c9]/70 shadow-md">
+                          {msg.username?.charAt(0).toUpperCase() || "U"}
+                        </div>
+                      )}
+
                       <div
-                        className={`flex flex-col ${msg.userId === user?.id ? "w-auto max-w-[80%] bg-gray-600 justify-end rounded-xl h-auto p-2 " : "w-auto bg-gray-600 justify-end rounded-xl h-auto p-2"}`}
+                        className={`flex flex-col ${
+                          isSelf
+                            ? "bg-gradient-to-br from-[#7980b7] to-[#6c75b5] max-w-[75%] rounded-2xl rounded-tr-none h-auto p-3 shadow-lg"
+                            : "bg-gradient-to-br from-[#454c77] to-[#3e4469] max-w-[75%] rounded-2xl rounded-tl-none h-auto p-3 shadow-lg"
+                        }`}
+                        style={{
+                          backdropFilter: "blur(8px)",
+                          transition: "all 0.2s ease",
+                        }}
                       >
-                        <div className="text-xs text-gray-300">
+                        <div
+                          className={`text-xs font-semibold ${isSelf ? "text-[#e0e2f5]" : "text-[#b6bae0]"} mb-1`}
+                        >
                           {isSelf ? "You" : msg.username}
                         </div>
-                        {msg.message}
+                        <div
+                          className={`${isSelf ? "text-white" : "text-[#f0f1f9]"} break-words`}
+                        >
+                          {msg.message}
+                        </div>
+
+                        {/* Timestamp with subtle styling */}
+                        <div className="text-xs text-[#b6bae0]/70 mt-1 text-right font-light">
+                          {new Date().toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </div>
                       </div>
+
+                      {/* Avatar for your messages */}
+                      {isSelf && (
+                        <div className="w-8 h-8 rounded-full bg-[#8b92c9] flex items-center justify-center ml-2 text-xs font-bold text-white border-2 border-[#9ba1d5]/70 shadow-md">
+                          {user?.username?.charAt(0).toUpperCase() || "Y"}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
                 <div ref={chatEndRef} /> {/* Scroll anchor */}
               </div>
 
-              <form
-                onSubmit={handleChatSubmit}
-                className="p-4 border-t border-gray-700"
-              >
-                <div className="flex w-full justify-between items-center">
+              {/* Input Form */}
+              <div className="p-4 border-t border-[#6c75b5]/30 bg-gradient-to-r from-[#454c77] to-[#383f66]">
+                <form onSubmit={handleChatSubmit} className="relative">
                   <input
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     placeholder="Type a message..."
-                    className="flex-grow p-2 bg-gray-700 text-white rounded-l-lg focus:outline-none"
+                    className="w-full p-4 pl-5 pr-16 bg-[#3e4469]/90 text-[#f0f1f9] rounded-full focus:outline-none focus:ring-2 focus:ring-[#7980b7]/50 placeholder-[#b6bae0] shadow-inner"
                   />
                   <button
                     type="submit"
-                    className="bg-blue-600 text-white px-4 py-2 rounded-r-lg hover:bg-blue-700"
+                    className="absolute right-1 top-1 bottom-1 px-4 bg-gradient-to-r from-[#7980b7] to-[#6c75b5] text-white rounded-full hover:from-[#8b92c9] hover:to-[#7980b7] transition-all duration-300 font-medium shadow-md flex items-center justify-center"
                   >
-                    Send
+                    <span>Send</span>
+                    <svg
+                      className="w-4 h-4 ml-1"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                      />
+                    </svg>
                   </button>
-                </div>
-              </form>
+                </form>
+              </div>
             </div>
           </div>
         ) : (
-          <div className="w-[35%] h-full "> </div>
+          <div className="w-[35%] h-full"></div>
         )}
       </div>
       {inMeetingRoom && showMeetingRoom && (

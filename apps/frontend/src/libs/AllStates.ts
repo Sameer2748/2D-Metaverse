@@ -78,8 +78,11 @@ export const useSpaceStates = (user: any) => {
     MeetingRoomChatmessage[]
   >([]);
   const [meetingRoomChatInput, setMeetingRoomChatInput] = useState("");
+  const [popup, setShowPopup] = useState(true);
 
   return {
+    popup,
+    setShowPopup,
     userPosition,
     setUserPosition,
     userDirection,
