@@ -1,9 +1,9 @@
 # 2d metaverse Project
 
-Space for teams to move with avatar.
-One to One Video call functionality when user face each other.
-Meeting room Option in left bottom room enter.
-let's work and have fun together.
+1. Space for teams to move with avatar.
+2. One to One Video call functionality when user face each other.
+3. Meeting room Option in left bottom room enter.
+4. let's work and have fun together.
 
 This repository is a **2d metaverse ** project that manages a monorepo structure with the following apps:
 
