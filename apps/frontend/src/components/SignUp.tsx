@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { IoEyeOutline, IoEyeOffOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { BACKEND_URL } from "../config";
 
 const SignUp = () => {
   const [show, setShow] = useState(false);
@@ -23,7 +24,7 @@ const SignUp = () => {
     try {
       // Handle Sign-In Logic Here
       // Handle Sign-In Logic Here
-      const user = await axios.post("http://localhost:3000/api/v1/signUp", {
+      const user = await axios.post(`${BACKEND_URL}/signUp`, {
         name,
         username,
         password,
@@ -48,7 +49,7 @@ const SignUp = () => {
         navigate("/dashboard");
       }
 
-      const avatars = await axios.get("http://localhost:3000/api/v1/avatars");
+      const avatars = await axios.get(`${BACKEND_URL}/avatars`);
       setAvatars(avatars.data.avatars);
     };
     fetch();

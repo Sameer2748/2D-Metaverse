@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import Button from "./ui/Button";
 import { useRecoilState } from "recoil";
 import { spaceState } from "../store/spaceAtom";
+import { BACKEND_URL } from "../config";
 
 // Type Definitions
 interface Element {
@@ -101,7 +102,7 @@ const API = {
   createElement: async (elementData: Omit<Element, "id">): Promise<Element> => {
     try {
       const res = await axios.post(
-        "http://localhost:3000/api/v1/admin/element",
+        `${BACKEND_URL}/admin/element`,
         { elementData },
         { headers: { Authorization: `${localStorage.getItem("token")}` } }
       );
@@ -156,7 +157,7 @@ export const ElementCreation = ({ onClick }: ElementType) => {
     e.preventDefault();
     try {
       const res = await axios.post(
-        "http://localhost:3000/api/v1/admin/element",
+        `${BACKEND_URL}/admin/element`,
         { imageUrl, width, height, static: isStatic },
         { headers: { Authorization: `${localStorage.getItem("token")}` } }
       );
@@ -345,7 +346,7 @@ export const MapCreation = ({ onClick }: { onClick: () => void }) => {
 
   useEffect(() => {
     const fetchElements = async () => {
-      const response = await axios.get("http://localhost:3000/api/v1/elements");
+      const response = await axios.get(`${BACKEND_URL}/elements`);
       setAvailableElements(response.data.elements);
       console.log(response.data.elements);
     };
@@ -390,7 +391,7 @@ export const MapCreation = ({ onClick }: { onClick: () => void }) => {
       console.log(elements);
 
       const res = await axios.post(
-        "http://localhost:3000/api/v1/admin/map",
+        `${BACKEND_URL}/admin/map`,
         {
           thumbnail: mapForm.thumbnail,
           dimensions: mapForm.dimensions,
@@ -467,7 +468,7 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
 
   useEffect(() => {
     const fetchMaps = async () => {
-      const res = await axios.get("http://localhost:3000/api/v1/maps");
+      const res = await axios.get(`${BACKEND_URL}/maps`);
       console.log(res.data);
       setMaps(res.data.maps);
       setSelectedMap(res.data.maps[0]);
@@ -486,7 +487,7 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
       setLoading(true);
 
       const newSpace = await axios.post(
-        "http://localhost:3000/api/v1/space/",
+        `${BACKEND_URL}/space/`,
         {
           name,
           dimensions,

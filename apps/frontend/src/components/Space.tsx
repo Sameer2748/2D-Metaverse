@@ -12,6 +12,7 @@ import { AvatarDirection, UserPositionInfo } from "../libs/types";
 import { checkFacingUsers, determineDirection } from "../libs/Func";
 import Bottom from "./Bottom";
 import Topbar from "./Topbar";
+import { BACKEND_URL, WS_URL } from "../config";
 
 // Main Space Component
 const Space = () => {
@@ -368,10 +369,9 @@ const Space = () => {
   //user metadata space details
   useEffect(() => {
     const fetch = async () => {
-      const res = await axios.get(
-        "http://localhost:3000/api/v1/user/metadata",
-        { headers: { authorization: localStorage.getItem("token") } }
-      );
+      const res = await axios.get(`${BACKEND_URL}/user/metadata`, {
+        headers: { authorization: localStorage.getItem("token") },
+      });
       console.log(res.data.user);
       await setUser(res.data.user);
       console.log(user);
@@ -379,21 +379,18 @@ const Space = () => {
 
     const fetchSpaceDetails = async () => {
       try {
-        const response = await axios.get(
-          `http://localhost:3000/api/v1/space/${spaceId}`,
-          {
-            headers: {
-              Authorization: `${token}`,
-            },
-          }
-        );
+        const response = await axios.get(`${BACKEND_URL}/space/${spaceId}`, {
+          headers: {
+            Authorization: `${token}`,
+          },
+        });
         setSpaceDetails(response.data);
         if (response.data.elements.length > 500) {
           setMeetingOne(true);
         }
 
         const res = await axios.post(
-          `http://localhost:3000/api/v1/user/${response.data.creatorId}`,
+          `${BACKEND_URL}/user/${response.data.creatorId}`,
           {},
           {
             headers: {
@@ -412,7 +409,7 @@ const Space = () => {
   }, []);
 
   // WebSocket setup
-  const { sendMessage } = useWebSocket(`ws://localhost:3001`, {
+  const { sendMessage } = useWebSocket(`${WS_URL}`, {
     onOpen: () => {
       console.log("WebSocket connection established");
 

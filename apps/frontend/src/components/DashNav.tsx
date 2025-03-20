@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { ElementCreation, MapCreation, SpaceCreation } from "./CreateElement";
+import { BACKEND_URL } from "../config";
 
 const DashNav = () => {
   const [user, setUser] = useRecoilState(userState);
@@ -35,7 +36,7 @@ const DashNav = () => {
         navigate("/signIn");
       }
 
-      const avatars = await axios.get("http://localhost:3000/api/v1/avatars");
+      const avatars = await axios.get(`${BACKEND_URL}/avatars`);
       setAvatars(avatars.data.avatars);
     };
     fetch();
@@ -45,7 +46,7 @@ const DashNav = () => {
     try {
       setLoading(true);
       const res = await axios.post(
-        "http://localhost:3000/api/v1/user/metadata",
+        `${BACKEND_URL}/user/metadata`,
         {
           name: name,
         },
@@ -76,7 +77,7 @@ const DashNav = () => {
         return;
       }
       const update = await axios.post(
-        "http://localhost:3000/api/v1/user/avatar",
+        `${BACKEND_URL}/user/avatar`,
         {
           avatarId: newAvatarId,
         },
