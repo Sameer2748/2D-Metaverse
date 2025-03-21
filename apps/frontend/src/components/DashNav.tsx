@@ -64,6 +64,7 @@ const DashNav = () => {
     setEditCh(false);
     setHover(false);
   };
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     setUser(null);
@@ -100,12 +101,9 @@ const DashNav = () => {
   };
 
   return (
-    <div
-      className="w-full h-[10vh]  flex justify-between items-center text-white"
-      style={{ backgroundColor: "rgb(54, 58, 89)" }}
-    >
+    <div className="fixed top-0 left-0 w-full bg-[rgb(54,58,89)] text-white z-50 flex flex-col md:flex-row items-center p-4">
       {/* Left Navigation Section */}
-      <div className="w-[35%] flex justify-between items-center gap-2">
+      <div className="w-full md:w-[35%] flex justify-between items-center gap-2 mb-4 md:mb-0">
         <div className="ml-6">
           <p className="text-xl text-white">Gather</p>
         </div>
@@ -120,11 +118,11 @@ const DashNav = () => {
       </div>
 
       {/* Right User Section */}
-      <div className="w-[55%] flex justify-center items-center gap-2 relative">
+      <div className="w-full md:w-[55%] flex justify-center items-center gap-2 relative">
         {/* Username and Avatar Section */}
         <div
           onClick={() => setHover((prev) => !prev)}
-          className="w-[70%] p-2 flex justify-center  items-center gap-2 hover:bg-gray-200 p-1 rounded-xl hover:text-black cursor-pointer"
+          className="w-[70%] p-2 flex justify-center items-center gap-2 hover:bg-gray-200 rounded-xl hover:text-black cursor-pointer"
         >
           <img
             src={avatar.imageUrl}
@@ -137,10 +135,10 @@ const DashNav = () => {
         {/* Popup with options */}
         {hover && (
           <div
-            className="absolute top-[120%] left-[0%] w-[190px] flex flex-col gap-2  shadow-lg p-4 rounded-xl z-10"
+            className="absolute top-[120%] left-[0%] w-[190px] flex flex-col gap-2 shadow-lg p-4 rounded-xl z-10"
             style={{ backgroundColor: "rgb(84, 92, 143)" }}
           >
-            <div className="flex flex-col  text-white h-[50px]">
+            <div className="flex flex-col text-white h-[50px]">
               <div className="w-full flex justify-between items-center">
                 <p>{user.name}</p>
                 <MdEdit
@@ -152,15 +150,9 @@ const DashNav = () => {
               </div>
               <p className="">{user?.username}</p>
             </div>
-            <div className="h-[2px] rounded-xl  bg-white"></div>
-            {/* <h1
-              className="cursor-pointer text-WHITE  hover:font-semibold"
-              onClick={() => setshowAvatarSelection(true)}
-            >
-              Edit Avatar
-            </h1> */}
+            <div className="h-[2px] rounded-xl bg-white"></div>
             <h1
-              className="cursor-pointer text-WHITE  hover:font-semibold"
+              className="cursor-pointer text-WHITE hover:font-semibold"
               onClick={handleLogout}
             >
               Sign Out
@@ -180,14 +172,14 @@ const DashNav = () => {
                 transform: "translate(-50%, -50%)",
               }}
             >
-              <div className="h-[50%] ">
-                <div className="w-full h-full  flex items-center justify-center">
-                  <p className="absolute top-[1.5rem] left-[1.5rem] text-white text-lg w-auto h-[35px] bg-[#00000080] font-semibold p-2 rounded-xl  flex justify-center items-center">
+              <div className="h-[50%]">
+                <div className="w-full h-full flex items-center justify-center">
+                  <p className="absolute top-[1.5rem] left-[1.5rem] text-white text-lg w-auto h-[35px] bg-[#00000080] font-semibold p-2 rounded-xl flex justify-center items-center">
                     {user?.name}
                   </p>
                   <p
                     onClick={() => setEditCh((prev) => !prev)}
-                    className="absolute top-[1.5rem] right-[1.5rem] cursor-pointer text-white text-[32px] w-auto h-[35px] font-semibold p-2 rounded-xl  flex justify-center items-center"
+                    className="absolute top-[1.5rem] right-[1.5rem] cursor-pointer text-white text-[32px] w-auto h-[35px] font-semibold p-2 rounded-xl flex justify-center items-center"
                   >
                     x
                   </p>
@@ -197,26 +189,23 @@ const DashNav = () => {
                     src="https://dynamic-assets.gather.town/v2/sprite-profile/avatar-gV7nljNpXAGHgAEnbBWv.3ZnyOry7q9szgHCU1URo.GOIono5TlL1mMHqoryfb.R-mO0WjmRySf-DdFAMmb.qXZsUMXd6wr2ICupUTcz.png?d=."
                     alt=""
                   />
-                  '
                 </div>
               </div>
-              <div className="h-[50%] bg-[#202540] w-full flex justify-center items-center rounded-xl ">
-                <div className="w-[80%] h-[80%] flex flex-col gap-4 ">
+              <div className="h-[50%] bg-[#202540] w-full flex justify-center items-center rounded-xl">
+                <div className="w-[80%] h-[80%] flex flex-col gap-4">
                   <h1 className="text-xl font-bold">What’s your name?</h1>
-                  <p className="text-sm ">
+                  <p className="text-sm">
                     Your name shows above your character. You’ll be able to
                     change it anytime.
                   </p>
                   <input
                     type="text"
                     value={name}
-                    onChange={(e) => {
-                      setName(e.target.value);
-                    }}
+                    onChange={(e) => setName(e.target.value)}
                     className="bg-transparent border border-gray-500 text-white rounded-lg h-[50px] p-2 focus:outline-none focus:ring-0"
                     placeholder="Enter your New Name"
                   />
-                  <div className=" flex justify-center items-center">
+                  <div className="flex justify-center items-center">
                     <div className="flex justify-between items-center gap-4">
                       <Button
                         text="Back"
@@ -225,23 +214,13 @@ const DashNav = () => {
                         classname="bg-[rgb(84, 92, 143)] cursor-pointer"
                         onClick={() => setEditCh(false)}
                       />
-                      {loading ? (
-                        <Button
-                          text={loading ? "Updating" : "Update"}
-                          color="black"
-                          size="xl"
-                          classname="bg-[rgb(84, 92, 143)] cursor-pointer"
-                          onClick={update}
-                        />
-                      ) : (
-                        <Button
-                          text={loading ? "Updating" : "Update"}
-                          color="black"
-                          size="xl"
-                          classname="bg-[rgb(84, 92, 143)] cursor-pointer"
-                          onClick={update}
-                        />
-                      )}
+                      <Button
+                        text={loading ? "Updating" : "Update"}
+                        color="black"
+                        size="xl"
+                        classname="bg-[rgb(84, 92, 143)] cursor-pointer"
+                        onClick={update}
+                      />
                     </div>
                   </div>
                 </div>
@@ -275,7 +254,7 @@ const DashNav = () => {
 
             {/* Centered Popup */}
             <div
-              className="fixed top-1/2 left-1/2 w-full h-full   flex flex-col gap-2 shadow-lg rounded-xl z-30"
+              className="fixed top-1/2 left-1/2 w-full h-full flex flex-col gap-2 shadow-lg rounded-xl z-30"
               style={{
                 backgroundColor: "rgb(84, 92, 143)",
                 transform: "translate(-50%, -50%)",
@@ -298,14 +277,14 @@ const DashNav = () => {
                 transform: "translate(-50%, -50%)",
               }}
             >
-              <div className="h-[50%] ">
-                <div className="w-full h-full  flex items-center justify-center">
-                  <p className="absolute top-[1.5rem] left-[1.5rem] text-white text-lg w-auto h-[35px] bg-[#00000080] font-semibold p-2 rounded-xl  flex justify-center items-center">
+              <div className="h-[50%]">
+                <div className="w-full h-full flex items-center justify-center">
+                  <p className="absolute top-[1.5rem] left-[1.5rem] text-white text-lg w-auto h-[35px] bg-[#00000080] font-semibold p-2 rounded-xl flex justify-center items-center">
                     {user?.name}
                   </p>
                   <p
                     onClick={() => setOpenJoinSpace((prev) => !prev)}
-                    className="absolute top-[1.5rem] right-[1.5rem] cursor-pointer text-white text-[32px] w-auto h-[35px] font-semibold p-2 rounded-xl  flex justify-center items-center"
+                    className="absolute top-[1.5rem] right-[1.5rem] cursor-pointer text-white text-[32px] w-auto h-[35px] font-semibold p-2 rounded-xl flex justify-center items-center"
                   >
                     x
                   </p>
@@ -315,23 +294,20 @@ const DashNav = () => {
                     src="https://dynamic-assets.gather.town/v2/sprite-profile/avatar-gV7nljNpXAGHgAEnbBWv.3ZnyOry7q9szgHCU1URo.GOIono5TlL1mMHqoryfb.R-mO0WjmRySf-DdFAMmb.qXZsUMXd6wr2ICupUTcz.png?d=."
                     alt=""
                   />
-                  '
                 </div>
               </div>
-              <div className="h-[50%] bg-[#202540] w-full flex justify-center items-center rounded-xl ">
-                <div className="w-[80%] h-[80%] flex flex-col gap-4 ">
+              <div className="h-[50%] bg-[#202540] w-full flex justify-center items-center rounded-xl">
+                <div className="w-[80%] h-[80%] flex flex-col gap-4">
                   <h1 className="text-xl font-bold">Join Space Let's go..</h1>
-                  <p className="text-sm ">Enter Space url</p>
+                  <p className="text-sm">Enter Space url</p>
                   <input
                     type="text"
                     value={url}
-                    onChange={(e) => {
-                      setUrl(e.target.value);
-                    }}
+                    onChange={(e) => setUrl(e.target.value)}
                     className="bg-transparent border border-gray-500 text-white rounded-lg h-[50px] p-2 focus:outline-none focus:ring-0"
                     placeholder="Paste Url"
                   />
-                  <div className=" flex justify-center items-center">
+                  <div className="flex justify-center items-center">
                     <div className="flex justify-between items-center gap-4">
                       <Button
                         text="Back"
@@ -340,25 +316,15 @@ const DashNav = () => {
                         classname="bg-[rgb(84, 92, 143)] cursor-pointer"
                         onClick={() => setOpenJoinSpace(false)}
                       />
-                      {loading ? (
-                        <Button
-                          text={loading ? "Updating" : "Update"}
-                          color="black"
-                          size="xl"
-                          classname="bg-[rgb(84, 92, 143)] cursor-pointer"
-                          onClick={() => {}}
-                        />
-                      ) : (
-                        <Button
-                          text={loading ? "Joining" : "Join"}
-                          color="black"
-                          size="xl"
-                          classname="bg-[rgb(84, 92, 143)] cursor-pointer"
-                          onClick={() => {
-                            window.location.href = url;
-                          }}
-                        />
-                      )}
+                      <Button
+                        text={loading ? "Joining" : "Join"}
+                        color="black"
+                        size="xl"
+                        classname="bg-[rgb(84, 92, 143)] cursor-pointer"
+                        onClick={() => {
+                          window.location.href = url;
+                        }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -376,7 +342,7 @@ const DashNav = () => {
           <div className="fixed top-0 left-0 w-full h-full bg-black opacity-50 z-20">
             {/* Centered Popup */}
             <div
-              className="fixed top-1/2 left-1/2 w-[436px]  h-[250px] flex flex-col justify-center items-center gap-2 shadow-lg  rounded-xl z-30"
+              className="fixed top-1/2 left-1/2 w-[436px] h-[250px] flex flex-col justify-center items-center gap-2 shadow-lg rounded-xl z-30"
               style={{
                 backgroundColor: "rgb(84, 92, 143)",
                 transform: "translate(-50%, -50%)",
@@ -385,7 +351,10 @@ const DashNav = () => {
               <div className="flex justify-center gap-10">
                 {allAvatars.map((av) => (
                   <img
-                    className={`w-[70px] h-[70px] rounded-full ${newAvatarId === av.id ? "border-4 border-green-700" : ""} `}
+                    key={av.id}
+                    className={`w-[70px] h-[70px] rounded-full ${
+                      newAvatarId === av.id ? "border-4 border-green-700" : ""
+                    }`}
                     onClick={() => setNewAvatarId(av.id)}
                     src={av.imageUrl}
                     alt=""
@@ -393,7 +362,7 @@ const DashNav = () => {
                 ))}
               </div>
               <button
-                className="bg-green-600 w-[80%]  rounded-xl p-2 mt-10"
+                className="bg-green-600 w-[80%] rounded-xl p-2 mt-10"
                 onClick={handleUpdateAvatar}
               >
                 Update Avatar
@@ -429,7 +398,6 @@ const DashNav = () => {
             </button>
           </div>
         )}
-        {/* Create Space Button */}
       </div>
     </div>
   );

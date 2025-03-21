@@ -1,77 +1,72 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "./ui/Button";
 
 const Navbar = () => {
   const navigate = useNavigate();
-  const handleSignIn = () => {
-    navigate("/signIn");
-  };
-  const handleSignUp = () => {
-    navigate("/signUp");
-  };
+  const [isOpen, setIsOpen] = useState(false); // Toggle for mobile menu
+
+  const handleSignIn = () => navigate("/signIn");
+  const handleSignUp = () => navigate("/signUp");
+
   return (
-    <div className="w-full h-[20vh] bg-transparent text-white flex justify-between items-center ">
-      <div className="w-[20%] flex items-center justify-center ">
-        <img src="" alt="" />
-        <h1 className="text-[40px]">Gather</h1>
+    <nav className="w-full h-[9vh] bg-transparent text-white flex justify-between items-center p-4 md:p-6">
+      {/* Logo Section */}
+      <div className="flex items-center gap-2">
+        <h1 className="text-2xl sm:text-3xl md:text-[40px] font-bold">
+          Gather
+        </h1>
       </div>
-      <div className=" flex justify-end items-center w-[80%] mr-9">
-        {/* <div>
-                <ul className=" flex justify-between items-center gap-4 pr-4">
-                    <li >
-                        <div className="flex gap-4">
-                            <select name="products" id="" className="">
-                            <option value="products">Resources</option>
-                            <option value="services">services</option>
-                            <option value="whatsnew">what's new</option>
-                            <option value="products"></option>
-                            </select>
-                        </div>
-                    </li>
-                    <li >
-                        <div className="flex gap-4">
-                            <select name="products" id="">
-                            <option value="products">products</option>
-                            <option value="services">services</option>
-                            <option value="whatsnew">what's new</option>
-                            <option value="products"></option>
-                            </select>
-                        </div>
-                    </li>
-                    <li>
-                        <div className="flex gap-4">
-                            <select name="products" id="">
-                            <option value="products">products</option>
-                            <option value="services">services</option>
-                            <option value="whatsnew">what's new</option>
-                            <option value="products"></option>
-                            </select>
-                        </div>
-                    </li>
-                    <li className="text-lg cursor-pointer">
-                        <p>Contact Sales</p>
-                    </li>
-                </ul>
-            </div> */}
-        {/* buttons  */}
-        <div className=" flex gap-4">
+
+      {/* Desktop Buttons */}
+      <div className="hidden md:flex gap-4">
+        <Button
+          text="Sign Up"
+          size="lg"
+          color="black"
+          classname="cursor-pointer"
+          onClick={handleSignUp}
+        />
+        <Button
+          text="Sign In"
+          size="lg"
+          color="black"
+          classname="cursor-pointer"
+          onClick={handleSignIn}
+        />
+      </div>
+
+      {/* Mobile Menu Button */}
+      <button
+        className="md:hidden text-white text-2xl"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        ☰
+      </button>
+
+      {/* Mobile Menu Dropdown */}
+      {isOpen && (
+        <div
+          style={{ backgroundColor: "rgb(58 53 124)" }}
+          className="absolute top-[9vh] left-0 w-full  text-white flex flex-col items-center gap-4 p-4 shadow-lg md:hidden"
+        >
           <Button
             text="Sign Up"
             size="lg"
             color="black"
-            classname="cursor-pointer "
+            classname="w-full"
             onClick={handleSignUp}
           />
           <Button
             text="Sign In"
             size="lg"
             color="black"
-            classname="cursor-pointer "
+            classname="w-full"
             onClick={handleSignIn}
           />
         </div>
-      </div>
-    </div>
+      )}
+    </nav>
   );
 };
 

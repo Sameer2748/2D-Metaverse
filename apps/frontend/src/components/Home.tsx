@@ -16,33 +16,36 @@ const Home = () => {
   return (
     <div className="w-[full] h-screen bg-Hero ">
       <Navbar />
-      <div className="w-full h-[70vh] flex justify-center items-center">
-        <div className="w-full h-full flex flex-col justify-center p-8 pl-12 pr-12 ml-10 gap-4 ">
-          <h1 className="text-[46px] font-bold text-white">
+      <div className="w-full h-auto min-h-[70vh] flex flex-col md:flex-row justify-center items-center p-6 md:p-12">
+        {/* Left Section */}
+        <div className="w-full md:w-1/2 flex flex-col justify-center items-center text-center md:text-left p-4 md:p-8">
+          <h1 className="text-3xl md:text-[46px] font-bold text-white">
             Your <span className="text-blue-300">Virtual HQ</span>
           </h1>
-          <p className="w-[80%] text-xl text-gray-300">
+          <p className="w-full md:w-[80%] text-lg md:text-xl text-gray-300 mt-2">
             Gather brings the best of in-person collaboration to distributed
             teams
           </p>
-          <div className="flex gap-4 mt-4">
-            <button className="bg-blue-500 hover:bg-blue-600 text-white py-3 px-6 rounded-lg font-medium transition-colors">
+          <div className="flex flex-col md:flex-row gap-4 mt-6">
+            <button className="bg-blue-500 hover:bg-blue-600 text-white py-3 px-6 rounded-lg font-medium transition-colors w-full md:w-auto">
               Get Started
             </button>
-            <button className="border border-white text-white py-3 px-6 rounded-lg font-medium hover:bg-white hover:text-blue-900 transition-colors">
+            <button className="border border-white text-white py-3 px-6 rounded-lg font-medium hover:bg-white hover:text-blue-900 transition-colors w-full md:w-auto">
               Learn More
             </button>
           </div>
         </div>
-        <div className="w-full h-full flex justify-center items-center pr-20">
+
+        {/* Right Section - Video */}
+        <div className="w-full md:w-1/2 flex justify-center items-center mt-6 md:mt-0">
           <video
-            width={500}
-            height={500}
+            width="100%"
+            height="auto"
             src="https://cdn.vidzflow.com/v/h3yy6rTnJQ_720p_1691443174.mp4"
-            className="rounded-xl shadow-lg"
-            loop={true}
-            autoPlay={true}
-            muted={true}
+            className="rounded-xl shadow-lg max-w-[500px]"
+            loop
+            autoPlay
+            muted
           ></video>
         </div>
       </div>

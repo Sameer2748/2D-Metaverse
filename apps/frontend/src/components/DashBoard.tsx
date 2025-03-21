@@ -77,13 +77,13 @@ const DashBoard = () => {
     <div className="bg-Hero w-full h-screen bg-[#282d4e] text-white">
       <DashNav />
       {/* Content */}
-      <div className="w-[100%] h-[80%] p-8">
+      <div className="flex-grow overflow-hidden p-8 bg-[#282d4e]">
         {loading ? (
           <div className="w-full h-full flex justify-center items-center">
             <p>Loading...</p>
           </div>
         ) : spaces.length > 0 ? (
-          <div className="grid grid-cols-12 justify-center gap-3">
+          <div className="grid grid-cols-12 gap-3 overflow-y-auto h-full p-2 ">
             {spaces.map((space) => (
               <div
                 key={space?.id}
@@ -110,7 +110,7 @@ const DashBoard = () => {
             ))}
           </div>
         ) : (
-          <div className="w-[95vw] h-full flex justify-center items-center">
+          <div className="w-full h-full flex justify-center items-center">
             <p>No Space Found! Create New Space.</p>
           </div>
         )}
