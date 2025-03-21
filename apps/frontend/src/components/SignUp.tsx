@@ -11,7 +11,8 @@ const SignUp = () => {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
 
-  const [type, setType] = useState("user");
+  const [type, setType] = useState<"user" | "admin">("user");
+
   const [avatarId, setAvatarId] = useState(null);
   const [password, setPassword] = useState("");
   const navigate = useNavigate();

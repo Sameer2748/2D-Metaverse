@@ -2,7 +2,7 @@ import axios from "axios";
 import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
 import Button from "./ui/Button";
-import { useRecoilState } from "recoil";
+import { useRecoilState, useSetRecoilState } from "recoil";
 import { spaceState } from "../store/spaceAtom";
 import { BACKEND_URL } from "../config";
 
@@ -436,7 +436,7 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
   const [selected, setSelected] = useState(0);
   const [loading, setLoading] = useState(false);
   const dimensions = `${selectedMap?.width}x${selectedMap?.height}`;
-  const [setSpaces] = useRecoilState(spaceState);
+  const setSpaces = useSetRecoilState(spaceState);
 
   useEffect(() => {
     const fetchMaps = async () => {
