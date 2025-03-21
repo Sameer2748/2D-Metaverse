@@ -101,7 +101,7 @@ const DashNav = () => {
   };
 
   return (
-    <div className="fixed top-0 left-0 w-full bg-[rgb(54,58,89)] text-white z-50 flex flex-col md:flex-row items-center p-4">
+    <div className="fixed top-0 left-0 w-full bg-[rgb(54,58,89)] justify-between  text-white z-50 flex flex-col md:flex-row items-center p-4">
       {/* Left Navigation Section */}
       <div className="w-full md:w-[35%] flex justify-between items-center gap-2 mb-4 md:mb-0">
         <div className="ml-6">

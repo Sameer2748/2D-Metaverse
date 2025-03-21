@@ -74,33 +74,38 @@ const DashBoard = () => {
   };
 
   return (
-    <div className="bg-Hero w-full h-screen bg-[#282d4e] text-white">
+    <div className="bg-Hero bg-[#282d4e] text-white min-h-screen flex flex-col">
+      {/* Sticky Navbar */}
       <DashNav />
-      {/* Content */}
-      <div className="flex-grow overflow-hidden p-8 bg-[#282d4e]">
+
+      {/* Main Content Area */}
+      <div
+        // Push content below the sticky nav (which is ~10vh high)
+        className="pt-[10vh] flex-grow overflow-y-auto px-8 mt-[38px] md:mt-0 lg:mt-0"
+      >
         {loading ? (
-          <div className="w-full h-full flex justify-center items-center">
+          <div className="flex justify-center items-center h-full">
             <p>Loading...</p>
           </div>
         ) : spaces.length > 0 ? (
-          <div className="grid grid-cols-12 gap-3 overflow-y-auto h-full p-2 ">
+          <div className="grid grid-cols-12 gap-3 p-2">
             {spaces.map((space) => (
               <div
-                key={space?.id}
+                key={space.id}
                 className="col-span-12 md:col-span-6 lg:col-span-4 h-[300px] p-2"
               >
                 <div className="w-full h-[80%]">
                   <img
-                    onClick={() => navigate(`/space/${space?.id}`)}
+                    onClick={() => navigate(`/space/${space.id}`)}
                     className="w-full h-full rounded-xl hover:border-4 hover:border-[#545c8f] cursor-pointer"
-                    src={`${space?.thumbnail}`}
-                    alt=""
+                    src={space.thumbnail}
+                    alt="Space thumbnail"
                   />
                 </div>
                 <div className="flex w-full justify-between items-center p-2">
-                  <h1>{space?.name}</h1>
+                  <h1>{space.name}</h1>
                   <p
-                    onClick={() => HandleOpenDelete(space?.id)}
+                    onClick={() => HandleOpenDelete(space.id)}
                     className="cursor-pointer"
                   >
                     <RiDeleteBin7Line width={40} height={40} />
@@ -110,12 +115,14 @@ const DashBoard = () => {
             ))}
           </div>
         ) : (
-          <div className="w-full h-full flex justify-center items-center">
+          // Center "No Space Found" message
+          <div className="flex justify-center items-center h-full">
             <p>No Space Found! Create New Space.</p>
           </div>
         )}
       </div>
 
+      {/* Delete Confirmation Modal */}
       {DeleteModal && (
         <>
           <div className="fixed top-0 left-0 w-full h-full bg-black opacity-50 z-20"></div>
