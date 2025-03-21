@@ -20,7 +20,6 @@ const SignUp = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     setloading(true);
     e.preventDefault();
-    console.log(name, username, password, type);
 
     try {
       // Handle Sign-In Logic Here
