@@ -5,6 +5,11 @@
 3. Meeting room Option in left bottom room enter.
 4. let's work and have fun together.
 
+# Demo Credentials for Visitor
+email: deepak@gmail.com
+password: 123
+
+
 This repository is a **2d metaverse ** project that manages a monorepo structure with the following apps:
 
 1. **frontend** - A web application for the user interface. 
