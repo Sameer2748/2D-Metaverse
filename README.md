@@ -6,7 +6,7 @@
 4. let's work and have fun together.
 
 # Demo Credentials for Visitor
-email: deepak@gmail.com
+email: deepak@gmail.com .
 password: 123
 
 
