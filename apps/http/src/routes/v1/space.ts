@@ -10,13 +10,33 @@ import {
 export const spaceRouter = Router();
 
 spaceRouter.post("/", userMiddleware, async (req, res) => {
-  console.log("endopibnt");
+  console.log("endpoint", req.body.emails);
   const parsedData = CreateSpaceSchema.safeParse(req.body);
   console.log(parsedData);
 
   if (!parsedData.success) {
     console.log(JSON.stringify(parsedData));
     res.status(400).json({ message: "Validation failed" });
+    return;
+  }
+
+  if (!parsedData.data.emails) {
+    console.log("emails not found");
+    res.status(400).json({ message: "Emails not found" });
+    return;
+  }
+
+  // Fetch users by their "username" (which is actually the email in your case)
+  const users = await client.user.findMany({
+    where: {
+      username: {
+        in: parsedData.data.emails,  // Find users whose username is in the provided emails array
+      }
+    }
+  });
+
+  if (users.length !== parsedData.data.emails.length) {
+    res.status(400).json({ message: "Some users not found" });
     return;
   }
 
@@ -27,6 +47,9 @@ spaceRouter.post("/", userMiddleware, async (req, res) => {
         width: parseInt(parsedData.data.dimensions.split("x")[0]),
         height: parseInt(parsedData.data.dimensions.split("x")[1]),
         thumbnail: parsedData.data.thumbnail,
+        teamMembers: {
+          connect: users.map(user => ({ id: user.id })),  // Connect the users by their ids
+        },
         creatorId: req.userId!,
       },
     });
@@ -62,6 +85,9 @@ spaceRouter.post("/", userMiddleware, async (req, res) => {
           height: map.height,
           creatorId: req.userId!,
           thumbnail: parsedData.data.thumbnail,
+          teamMembers: {
+            connect: users.map(user => ({ id: user.id })),  // Connect the users by their ids
+          },
         },
       });
 
@@ -78,13 +104,14 @@ spaceRouter.post("/", userMiddleware, async (req, res) => {
       return space;
     },
     {
-      // Increase timeout to 30 seconds (or any value you need)
       timeout: 30000,
     }
   );
-  console.log("space crated");
+  console.log("space created");
   res.json({ spaceId: space.id, space: space });
 });
+
+
 
 spaceRouter.delete("/element", userMiddleware, async (req, res) => {
   console.log("spaceElement?.space1 ");
@@ -223,6 +250,7 @@ spaceRouter.get("/:spaceId", async (req, res) => {
       id: req.params.spaceId,
     },
     include: {
+      teamMembers: true,
       elements: {
         include: {
           element: true,
@@ -235,12 +263,17 @@ spaceRouter.get("/:spaceId", async (req, res) => {
     res.status(400).json({ message: "Space not found" });
     return;
   }
-  console.log(space.elements);
+
+  // Fetch the creator user
+  const creator = await client.user.findUnique({
+    where: { id: space.creatorId },
+  });
 
   res.json({
     name: space.name,
     dimensions: `${space.width}x${space.height}`,
     creatorId: space.creatorId,
+    emails: creator ? [creator, ...space.teamMembers] : space.teamMembers,
     elements: space.elements.map((e) => ({
       id: e.id,
       element: {
@@ -254,4 +287,56 @@ spaceRouter.get("/:spaceId", async (req, res) => {
       y: e.y,
     })),
   });
+});
+
+
+spaceRouter.put("/:spaceId/members", userMiddleware, async (req, res) => {
+  const { spaceId } = req.params;
+  const { emails } = req.body;
+
+  if (!emails || !Array.isArray(emails)) {
+     res.status(400).json({ message: "Invalid email list" });
+     return
+  }
+
+  const space = await client.space.findUnique({
+    where: { id: spaceId },
+    select: { creatorId: true },
+  });
+
+  if (!space) {
+     res.status(404).json({ message: "Space not found" });
+     return
+  }
+
+  if (space.creatorId !== req.userId) {
+     res.status(403).json({ message: "Unauthorized" });
+     return
+  }
+
+  const users = await client.user.findMany({
+    where: {
+      username: {
+        in: emails,
+      },
+    },
+  });
+
+  if (users.length !== emails.length) {
+     res.status(400).json({ message: "Some users not found" });
+     return
+  }
+
+  await client.space.update({
+    where: { id: spaceId },
+    data: {
+      teamMembers: {
+        set: [], // remove all existing
+        connect: users.map(user => ({ id: user.id })),
+      },
+    },
+  });
+
+   res.json({ message: "Team members updated" });
+   return
 });

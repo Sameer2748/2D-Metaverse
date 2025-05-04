@@ -109,6 +109,18 @@ router.get("/avatars", async (req, res) => {
   });
 });
 
+router.get("/avatar/:avatarId", async (req, res)=>{
+  const avatarId = req.params.avatarId;
+  const avatar = await client.avatar.findUnique({
+    where:{
+      id: avatarId
+    }
+  });
+  res.json({
+    avatar
+  });
+})
+
 router.get("/maps", async (req, res) => {
   const maps = await client.map.findMany();
   res.json({ maps });

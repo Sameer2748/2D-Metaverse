@@ -13,15 +13,18 @@ import { checkFacingUsers, determineDirection } from "../libs/Func";
 import Bottom from "./Bottom";
 import Topbar from "./Topbar";
 import { BACKEND_URL, WS_URL } from "../config";
+import { toast } from "sonner";
 
 // Main Space Component
 const Space = () => {
   const [user, setUser] = useRecoilState(userState);
-
+  const [users, setUsers] = useState(null);
   const { spaceId } = useParams<{ spaceId: string }>();
   const token = localStorage.getItem("token");
   const wstoken = token?.split(" ")[1];
   const {
+    notAllowed,
+    setNotAllowed,
     popup,
     setShowPopup,
     userPosition,
@@ -87,6 +90,15 @@ const Space = () => {
       x: number;
       y: number;
     }[];
+    emails:{
+    id:string;
+    name:string;
+    avatarId:string;
+    password:string;
+    role:string;
+    username:string;
+    }[]
+    creatorId: string;
   } | null>(null);
   const [meetingOne, setMeetingOne] = useState(false);
   // Add these refs to your component
@@ -188,6 +200,10 @@ const Space = () => {
       });
     }
 
+    // check user is allowed or not
+    // useEffect(()=>{}
+    // },[])
+
     // Only clean up connections when actually leaving the meeting room
     // NOT when just hiding the UI
     return () => {
@@ -245,6 +261,31 @@ const Space = () => {
       }
     }
   };
+  useEffect(()=>{
+    const UserAllowed = async (userId)=>{
+      if(spaceDetails.creatorId !== userId){
+        console.log(spaceDetails.emails)
+        const isuser = spaceDetails?.emails.some(user => user.id === userId);
+        console.log(isuser);
+      if(!isuser){
+        // alert("You are not allowed to enter this space");
+        //  is there any way to set a timer also for how much time i wanna sjhow this toast 
+        toast("You are not allowed to enter this space")
+        setShowPopup(false);
+        setNotAllowed(true);
+        setTimeout(()=>{
+          window.location.href = "/dashboard";
+          setTimeout(()=>{
+            setNotAllowed(false);
+          }, 1000)
+        }, 1000)
+        return false;
+      }
+    }
+    return;
+    }
+    UserAllowed(user?.id);
+  }, [user, spaceDetails])
 
   useEffect(() => {
     // Cleanup function to close existing connections
@@ -390,6 +431,7 @@ const Space = () => {
           },
         });
         setSpaceDetails(response.data);
+
         if (response.data.elements.length > 500) {
           setMeetingOne(true);
         }
@@ -413,6 +455,8 @@ const Space = () => {
     fetch();
   }, []);
 
+ 
+
   // WebSocket setup
   const { sendMessage } = useWebSocket(`${WS_URL}`, {
     onOpen: () => {
@@ -422,6 +466,7 @@ const Space = () => {
       if (isInitialized && peerId) {
         sendJoinMessage();
       }
+      getallUsers()
     },
     onClose: () => {
       console.log("WebSocket connection closed, retrying...");
@@ -433,7 +478,9 @@ const Space = () => {
         case "space-joined":
           // Set the current user's position
           setUserPosition(message.payload.spawn);
+          getallUsers()
 
+          
           // Set other users' positions, explicitly excluding the current user
           setUsersPositions(() => {
             const updatedPositions: { [key: string]: UserPositionInfo } = {};
@@ -457,6 +504,8 @@ const Space = () => {
           break;
 
         case "user-joined":
+          getallUsers()
+
           // Only add the new user if it's not the current user
           if (message.payload.userId !== user?.id) {
             setUsersPositions((prev) => ({
@@ -494,6 +543,8 @@ const Space = () => {
           break;
 
         case "user-left":
+          getallUsers()
+
           setUsersPositions((prev) => {
             const updatedPositions = { ...prev };
             delete updatedPositions[message.payload.userId];
@@ -544,12 +595,28 @@ const Space = () => {
           setMeetingRoomChatMessages((prev) => [...prev, message.payload]);
           break;
 
+        case "all-users":
+          console.log("all users", message.payload);
+          setUsers(message.payload.users)
+        break;
         default:
           console.warn("Unhandled message type:", message.type);
       }
     },
     shouldReconnect: () => true, // Enable reconnection
   });
+
+  // get all users in this room
+  const getallUsers = ()=>{
+    sendMessage(
+      JSON.stringify({
+        type: "all-users",
+        payload: {
+          spaceId: spaceId
+        },
+      })
+    )
+  }
 
   // Helper function to send the 'join' message
   const sendJoinMessage = () => {
@@ -560,7 +627,8 @@ const Space = () => {
           payload: {
             spaceId: spaceId,
             token: wstoken,
-            peerId, // Include the Peer ID
+            peerId, // Include the Peer ID,
+            userId: user?.id,
           },
         })
       );
@@ -1110,7 +1178,14 @@ const Space = () => {
   return (
     <div className="flex flex-col justify-between items-center h-screen bg-slate-900 p-6 pb-0 text-white">
       {/* top div for showing videos for remote user  */}
+      {
+        notAllowed && (
+          // bl;ur the backgroudn of whole screen
+          <div className="w-full h-screen fixed top-0 left-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50"/>
+        )
+      }
       <Topbar
+      spaceId={spaceId}
         hoveredName={hoveredName}
         spaceDetails={spaceDetails}
         setHoveredName={setHoveredName}
@@ -1240,7 +1315,9 @@ const Space = () => {
       )}
 
       {/* game grid and chat div */}
-      <div className="flex w-full h-5/6 gap-6 flex justify-between items-center">
+      <div className={`flex w-full h-5/6 gap-6 items-center ${
+    showChat ? "justify-between" : "justify-center"
+  }`}>
         {/* Game Grid */}
         <div
           className="w-[80%] h-full mr-4 overflow-auto  rounded-lg"
@@ -1511,6 +1588,8 @@ const Space = () => {
       {/* bottom div for user information */}
       <Bottom
         user={user}
+        team={users}
+        allTeam={spaceDetails.emails}
         toggleLocalAudio={toggleLocalAudio}
         localMediaState={localMediaState}
         toggleLocalVideo={toggleLocalVideo}

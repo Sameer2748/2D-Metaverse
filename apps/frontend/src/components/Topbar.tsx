@@ -1,5 +1,6 @@
 import React from "react";
 import { MediaState } from "../libs/types";
+import SpaceMembers from "./SpaceMembers";
 
 interface spaceDetails {
   name: string;
@@ -7,6 +8,7 @@ interface spaceDetails {
   height: number;
   mapId: number;
   thumbnail: string;
+  emails:[]
 }
 
 interface TopBarProps {
@@ -20,6 +22,7 @@ interface TopBarProps {
   localMediaState: MediaState;
   remoteVideoRef: React.RefObject<HTMLVideoElement>;
   remoteMediaState: MediaState;
+  spaceId:string
 }
 
 const Topbar = ({
@@ -33,7 +36,9 @@ const Topbar = ({
   localMediaState,
   remoteVideoRef,
   remoteMediaState,
+  spaceId
 }: TopBarProps) => {
+  const spaceEmails = spaceDetails.emails
   return (
     <div className="flex justify-between  w-full ">
       <div>
@@ -137,6 +142,10 @@ const Topbar = ({
             )}
           </div>
         )}
+      </div>
+      <div>
+      <SpaceMembers spaceId={spaceId} emails={spaceDetails.emails} onUpdate={(updatedList) => console.log("Updated:", updatedList)} />
+
       </div>
     </div>
   );

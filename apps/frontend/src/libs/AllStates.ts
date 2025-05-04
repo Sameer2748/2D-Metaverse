@@ -23,6 +23,8 @@ export const useSpaceStates = (user: any) => {
   const [userDirection, setUserDirection] = useState<AvatarDirection>(
     AvatarDirection.Front
   );
+
+  const [ notAllowed, setNotAllowed] = useState(false);
   const [usersPositions, setUsersPositions] = useState<{
     [key: string]: UserPositionInfo;
   }>({});
@@ -81,6 +83,8 @@ export const useSpaceStates = (user: any) => {
   const [popup, setShowPopup] = useState(true);
 
   return {
+    notAllowed,
+    setNotAllowed,
     popup,
     setShowPopup,
     userPosition,

@@ -8,25 +8,27 @@ datasource db {
 }
 
 model User {
-  id       String  @id @unique @default(cuid())
-  username String  @unique
-  password String
-  avatarId String?
-  role     Role
-  name     String
-  spaces   Space[]
-  avatar   Avatar? @relation(fields: [avatarId], references: [id])
+  id         String   @id @unique @default(cuid())
+  username   String   @unique
+  password   String
+  avatarId   String?
+  role       Role
+  name       String
+  spaces     Space[]  // Spaces this user owns
+  memberOf   Space[]  @relation("TeamMembers") // Spaces this user is a team member of
+  avatar     Avatar?  @relation(fields: [avatarId], references: [id])
 }
 
 model Space {
-  id        String          @id @unique @default(cuid())
-  name      String
-  width     Int
-  height    Int
-  thumbnail String?
-  creatorId String
-  creator   User            @relation(fields: [creatorId], references: [id])
-  elements  spaceElements[]
+  id           String          @id @unique @default(cuid())
+  name         String
+  width        Int
+  height       Int
+  thumbnail    String?
+  creatorId    String
+  creator      User            @relation(fields: [creatorId], references: [id])
+  elements     spaceElements[]
+  teamMembers  User[]          @relation("TeamMembers") // Team members for this space
 }
 
 model spaceElements {

@@ -438,6 +438,22 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
   const dimensions = `${selectedMap?.width}x${selectedMap?.height}`;
   const setSpaces = useSetRecoilState(spaceState);
 
+const [emailInput, setEmailInput] = useState("");
+const [emails, setEmails] = useState<string[]>([]);
+
+const addEmail = () => {
+  const trimmed = emailInput.trim();
+  if (trimmed && /\S+@\S+\.\S+/.test(trimmed) && !emails.includes(trimmed)) {
+    setEmails([...emails, trimmed]);
+    setEmailInput("");
+  }
+};
+
+const removeEmail = (email: string) => {
+  setEmails(emails.filter((e) => e !== email));
+};
+
+
   useEffect(() => {
     const fetchMaps = async () => {
       const res = await axios.get(`${BACKEND_URL}/maps`);
@@ -457,7 +473,7 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
 
     try {
       setLoading(true);
-
+      console.log(emails)
       const newSpace = await axios.post(
         `${BACKEND_URL}/space/`,
         {
@@ -465,6 +481,7 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
           dimensions,
           mapId: maps[selected].id,
           thumbnail: maps[selected].thumbnail,
+          emails
         },
         {
           headers: {
@@ -580,65 +597,102 @@ export const SpaceCreation = ({ onClick }: { onClick: () => void }) => {
         </div>
       ) : (
         <div
-          className="fixed top-1/2 left-1/2 w-[500px] h-[235px] flex flex-col justify-center items-center gap-2 shadow-lg rounded-xl z-30"
-          style={{
-            backgroundColor: "rgb(40, 45, 78)",
-            transform: "translate(-50%, -50%)",
-          }}
-        >
-          <div className="w-[90%] h-[90%] ">
-            <div className="flex relative justify-center flex-col gap-2 h-[60px] w-full">
-              <h1 className="font-bold text-xl">
-                Create a new office space for your team
-              </h1>
-              <p
-                className="text-[32px] text-white absolute top-0 right-0 cursor-pointer"
-                onClick={onClick}
-              >
-                x
-              </p>
-            </div>
-            <div className="w-full  flex flex-col gap-2">
-              <p className="flex ">
-                Space Name <p className="text-red-700">*</p>
-              </p>
+        className="fixed top-1/2 left-1/2 w-[500px] min-h-[300px] flex flex-col justify-center items-center gap-2 shadow-lg rounded-xl z-30"
+        style={{
+          backgroundColor: "rgb(40, 45, 78)",
+          transform: "translate(-50%, -50%)",
+        }}
+      >
+        <div className="w-[90%] py-4">
+          <div className="flex relative justify-center flex-col gap-2 h-[60px] w-full">
+            <h1 className="font-bold text-xl">
+              Create a new office space for your team
+            </h1>
+            <p
+              className="text-[32px] text-white absolute top-0 right-0 cursor-pointer"
+              onClick={onClick}
+            >
+              ×
+            </p>
+          </div>
+      
+          <div className="w-full flex flex-col gap-4 mt-4">
+            {/* Space name */}
+            <div className="flex flex-col gap-1">
+              <label className="text-white">
+                Space Name <span className="text-red-600">*</span>
+              </label>
               <input
                 type="text"
-                onChange={(e) => {
-                  setName(e.target.value);
-                }}
-                className="bg-transparent border border-gray-500 text-white rounded-lg h-[50px] p-2 focus:outline-none focus:ring-0"
-                placeholder="Enter your Space name"
+                onChange={(e) => setName(e.target.value)}
+                className="bg-transparent border border-gray-500 text-white rounded-lg h-[45px] px-3 focus:outline-none"
+                placeholder="Enter your space name"
+                value={name}
               />
             </div>
-
-            <div className="w-full p-2 flex justify-between items-center mt-4">
-              <Button
-                text="Back"
-                size="xl"
-                color="black"
-                classname=" cursor-pointer"
-                onClick={() => setStep(0)}
-              />
-              {name.length === 0 ? (
-                <Button
-                  text="Create Space"
-                  size="xl"
-                  color="black"
-                  classname="bg-[#06D6A0] p-2 w-auto"
+      
+            {/* Email input with add button */}
+            <div className="flex flex-col gap-1">
+              <label className="text-white">Invite team members (optional)</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  className="flex-1 bg-transparent border border-gray-500 text-white rounded-lg h-[45px] px-3 focus:outline-none"
+                  placeholder="Enter email address"
                 />
-              ) : (
-                <Button
-                  text={loading ? "Creating..." : "Create Space"}
-                  size="xl"
-                  color="black"
-                  classname="bg-[#06D6A0] p-2 w-auto cursor-pointer"
-                  onClick={handleCreateSpace}
-                />
+                <button
+                  onClick={addEmail}
+                  className="px-4 py-2 rounded-lg bg-[#06D6A0] text-black font-semibold"
+                >
+                  Add
+                </button>
+              </div>
+      
+              {/* Email list */}
+              {emails.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {emails.map((email) => (
+                    <div
+                      key={email}
+                      className="flex items-center bg-gray-700 text-white px-3 py-1 rounded-full"
+                    >
+                      <span>{email}</span>
+                      <button
+                        className="ml-2 text-red-400 hover:text-red-600"
+                        onClick={() => removeEmail(email)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
+      
+          {/* Buttons */}
+          <div className="w-full flex justify-between items-center mt-6">
+            <Button
+              text="Back"
+              size="xl"
+              color="black"
+              classname="cursor-pointer"
+              onClick={() => setStep(0)}
+            />
+            <Button
+              text={loading ? "Creating..." : "Create Space"}
+              size="xl"
+              color="black"
+              classname={`bg-[#06D6A0] p-2 w-auto ${name ? "cursor-pointer" : "opacity-50 pointer-events-none"}`}
+              onClick={handleCreateSpace}
+            />
+          </div>
         </div>
+      </div>
+      
+      
       )}
     </>
   );

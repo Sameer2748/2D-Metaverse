@@ -70,6 +70,7 @@ class SpaceCache {
     const space = await client.space.findUnique({
       where: { id: spaceId },
       include: {
+        creator:true,
         elements: {
           include: {
             element: true,
@@ -313,6 +314,40 @@ async function fetchSpace(spaceId: string) {
   return await spaceCache.getSpace(spaceId);
 }
 
+async function sendAllusers(spaceId:string, ws: WebSocket){
+  const allUsers = userManager.getUsersInSpace(spaceId);
+          
+  // Fetch additional details for each user from the database
+  const detailedUsers = await Promise.all(
+    allUsers.map(async (user) => {
+      const userData = await client.user.findUnique({
+        where: { id: user.userId },
+      });
+
+      return {
+        userId: user.userId,
+        name: userData?.name || user.name,
+        peerId: user.peerId,
+        position: user.position,
+        isGuest: user.isGuest,
+        email: userData?.username || null, // Example: Include additional fields like email
+        avatar: userData?.avatarId || null, // Example: Include avatar if available
+      };
+    })
+  );
+
+  console.log(detailedUsers);
+
+  // Send the detailed user data to the frontend
+  ws.send(
+    JSON.stringify({
+      type: "all-users",
+      payload: {
+        users: detailedUsers,
+      },
+    })
+  );
+}
 function setupWebSocketServer(wss: WebSocketServer) {
   wss.on("connection", (ws) => {
     ws.on("message", async (data) => {
@@ -321,6 +356,142 @@ function setupWebSocketServer(wss: WebSocketServer) {
 
         // Handle all message types
         switch (message.type) {
+
+          case "join": {
+            const { spaceId, token, peerId, isGuest, guestName } =
+              message.payload;
+
+            let userId: string = message.payload.userId;
+            let name: string;
+            console.log(
+              `User ${userId} is trying to join space ${spaceId}`
+            );
+            if (isGuest) {
+              // Handle guest user
+              userId = `guest-${token}`; // Using the guest token as userId
+              name = guestName;
+            } else {
+              // Handle regular user
+              try {
+                const decoded = jwt.verify(token, JWT_PASSWORD) as {
+                  userId: string;
+                };
+                if (!decoded.userId) {
+                  ws.close();
+                  return;
+                }
+                userId = decoded.userId;
+
+                // Fetch user details from database
+                const userData = await client.user.findUnique({
+                  where: { id: userId },
+                });
+                name = userData?.name || "Anonymous";
+              } catch (error) {
+                console.error("Token verification failed:", error);
+                ws.close();
+                return;
+              }
+            }
+
+            // Fetch space with elements
+            const space = await fetchSpace(spaceId);
+            if (!space) {
+              ws.close();
+              return;
+            }
+
+            console.log( space.creatorId, userId)
+
+            // Find and remove existing connections
+            const existingConnections = Array.from(
+              userManager.users.values()
+            ).filter(
+              (user) => user.userId === userId && user.spaceId === spaceId
+            );
+
+            existingConnections.forEach((existingUser) => {
+              try {
+                existingUser.ws.close();
+              } catch (error) {
+                console.error("Error closing existing connection:", error);
+              }
+              userManager.removeUser(existingUser.id);
+            });
+
+            // Generate spawn position
+            const spawnPosition = calculateSpawnPosition(spaceId, space);
+
+            // Create user object
+            const user: User = {
+              id: generateUniqueId(),
+              userId,
+              spaceId,
+              ws,
+              position: spawnPosition,
+              name,
+              peerId,
+              isGuest: isGuest || false,
+            };
+
+            userManager.addUser(user);
+
+            const allUsers = userManager.getUsersInSpace(spaceId);
+
+            // we are geeting userId from rthe payload 
+            const userInSpace = allUsers.find(
+              (user) => user.userId === userId
+            );
+            // now i wanna send a message to thethe owner of this space that someone is trying to join you wanna let them join or nto 
+
+
+            // Send join confirmation
+            ws.send(
+              JSON.stringify({
+                type: "space-joined",
+                payload: {
+                  spawn: spawnPosition,
+                  newUserPositions: allUsers.map((user) => ({
+                    userId: user.userId,
+                    position: user.position,
+                    name: user.name,
+                    peerId: user.peerId,
+                    isGuest: user.isGuest,
+                  })),
+                  userId,
+                  name,
+                  peerId,
+                  isGuest,
+                },
+              })
+            );
+
+            // Broadcast new user to others
+            userManager.broadcastToSpace(
+              spaceId,
+              {
+                type: "user-joined",
+                payload: {
+                  userId,
+                  position: spawnPosition,
+                  name,
+                  peerId,
+                  isGuest,
+                },
+              },
+              userId
+            );
+            break;
+          }
+          case "all-users": {
+            const { spaceId } = message.payload;
+          
+            // Fetch all users in the space
+            sendAllusers(spaceId, ws)
+            break;
+          }
+          
+
           case "enter-meeting-room": {
             const { userId, name, peerId, spaceId } = message.payload;
 
@@ -393,122 +564,6 @@ function setupWebSocketServer(wss: WebSocketServer) {
               // Broadcast to all meeting room users in this space
               meetingRoomManager.broadcastMessage(spaceId, chatMessage);
             }
-            break;
-          }
-
-          case "join": {
-            const { spaceId, token, peerId, isGuest, guestName } =
-              message.payload;
-
-            let userId: string;
-            let name: string;
-
-            if (isGuest) {
-              // Handle guest user
-              userId = `guest-${token}`; // Using the guest token as userId
-              name = guestName;
-            } else {
-              // Handle regular user
-              try {
-                const decoded = jwt.verify(token, JWT_PASSWORD) as {
-                  userId: string;
-                };
-                if (!decoded.userId) {
-                  ws.close();
-                  return;
-                }
-                userId = decoded.userId;
-
-                // Fetch user details from database
-                const userData = await client.user.findUnique({
-                  where: { id: userId },
-                });
-                name = userData?.name || "Anonymous";
-              } catch (error) {
-                console.error("Token verification failed:", error);
-                ws.close();
-                return;
-              }
-            }
-
-            // Fetch space with elements
-            const space = await fetchSpace(spaceId);
-            if (!space) {
-              ws.close();
-              return;
-            }
-
-            // Find and remove existing connections
-            const existingConnections = Array.from(
-              userManager.users.values()
-            ).filter(
-              (user) => user.userId === userId && user.spaceId === spaceId
-            );
-
-            existingConnections.forEach((existingUser) => {
-              try {
-                existingUser.ws.close();
-              } catch (error) {
-                console.error("Error closing existing connection:", error);
-              }
-              userManager.removeUser(existingUser.id);
-            });
-
-            // Generate spawn position
-            const spawnPosition = calculateSpawnPosition(spaceId, space);
-
-            // Create user object
-            const user: User = {
-              id: generateUniqueId(),
-              userId,
-              spaceId,
-              ws,
-              position: spawnPosition,
-              name,
-              peerId,
-              isGuest: isGuest || false,
-            };
-
-            userManager.addUser(user);
-
-            const allUsers = userManager.getUsersInSpace(spaceId);
-
-            // Send join confirmation
-            ws.send(
-              JSON.stringify({
-                type: "space-joined",
-                payload: {
-                  spawn: spawnPosition,
-                  newUserPositions: allUsers.map((user) => ({
-                    userId: user.userId,
-                    position: user.position,
-                    name: user.name,
-                    peerId: user.peerId,
-                    isGuest: user.isGuest,
-                  })),
-                  userId,
-                  name,
-                  peerId,
-                  isGuest,
-                },
-              })
-            );
-
-            // Broadcast new user to others
-            userManager.broadcastToSpace(
-              spaceId,
-              {
-                type: "user-joined",
-                payload: {
-                  userId,
-                  position: spawnPosition,
-                  name,
-                  peerId,
-                  isGuest,
-                },
-              },
-              userId
-            );
             break;
           }
 
@@ -640,6 +695,8 @@ function setupWebSocketServer(wss: WebSocketServer) {
       const user = userManager.findUserByWebSocket(ws);
       if (user) {
         // Broadcast user left to others
+        sendAllusers(user.spaceId, ws)
+
         userManager.broadcastToSpace(user.spaceId, {
           type: "user-left",
           payload: {

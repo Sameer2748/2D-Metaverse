@@ -25,6 +25,11 @@ const SignUp = () => {
     try {
       // Handle Sign-In Logic Here
       // Handle Sign-In Logic Here
+      if(avatarId === null) {
+        toast("Please select an avatar");
+        setloading(false);
+        return;
+      }
       const user = await axios.post(`${BACKEND_URL}/signUp`, {
         name,
         username,
