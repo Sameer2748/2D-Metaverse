@@ -497,6 +497,20 @@ const removeEmail = (email: string) => {
       toast("Space created successfully!");
     } catch (error) {
       setLoading(false);
+    
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        const message = error.response?.data?.message;
+    
+        if (status === 400 && message === "Some users not found") {
+          toast("Please add a user who has created an account");
+        } else {
+          toast("Something went wrong. Please try again.");
+        }
+      } else {
+        toast("Unexpected error occurred.");
+      }
+    
       console.error("Space creation failed", error);
     }
   };

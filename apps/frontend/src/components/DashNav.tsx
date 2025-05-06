@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Dispatch, SetStateAction, useEffect, useState } from "react";
 import { SlCalender } from "react-icons/sl";
 import { BsStars } from "react-icons/bs";
 import { useRecoilState } from "recoil";
@@ -12,7 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { ElementCreation, MapCreation, SpaceCreation } from "./CreateElement";
 import { BACKEND_URL } from "../config";
 
-const DashNav = () => {
+const DashNav = ({setShow, show}:{setShow: Dispatch<SetStateAction<number>>, show:number}) => {
   const [user, setUser] = useRecoilState(userState);
   const [avatar, setAvatar] = useRecoilState(avatarState);
   const [hover, setHover] = useState(false);
@@ -54,6 +54,7 @@ const DashNav = () => {
       );
 
       setUser(res.data.user);
+
       toast("updated successfully");
       setName("");
       setLoading(false);
@@ -107,13 +108,13 @@ const DashNav = () => {
         <div className="ml-6">
           <p className="text-xl text-white">Gather</p>
         </div>
-        <div className="w-[100px] h-[40px] flex justify-center items-center gap-2 hover:bg-gray-200 p-1 rounded-xl hover:text-black cursor-pointer">
-          <SlCalender />
-          <p>Events</p>
-        </div>
-        <div className="w-[115px] h-[40px] flex justify-center items-center gap-2 hover:bg-gray-200 p-1 rounded-xl hover:text-black cursor-pointer">
+        <div onClick={()=> setShow(0)} className={`w-[115px] h-[40px] flex justify-center ${show === 0 && "bg-gray-200 text-black " } items-center gap-2 hover:bg-gray-200 p-1 rounded-xl hover:text-black cursor-pointer `}>
           <BsStars />
           <p>My Spaces</p>
+        </div>
+        <div onClick={()=> setShow(1)} className={`w-[100px] h-[40px] flex justify-center ${show === 1 && "bg-gray-200 text-black" } items-center gap-2 hover:bg-gray-200 p-1 rounded-xl hover:text-black cursor-pointer`}>
+          <SlCalender />
+          <p>Teams</p>
         </div>
       </div>
 

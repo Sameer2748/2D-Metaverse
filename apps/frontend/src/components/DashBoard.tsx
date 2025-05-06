@@ -11,13 +11,15 @@ import { useNavigate } from "react-router-dom";
 import { BACKEND_URL } from "../config";
 
 const DashBoard = () => {
-  const setUser = useSetRecoilState(userState);
+  const [user, setUser] = useRecoilState(userState);
   const setAvatar = useSetRecoilState(avatarState);
   const [spaces, setSpaces] = useRecoilState(spaceState);
   const [loading, setLoading] = useState(true);
   const [DeleteModal, setDeleteModal] = useState(false);
   const [selectedSpaceid, setSelectedSpaceid] = useState("");
   const navigate = useNavigate();
+  const [show , setShow] = useState(0);
+
 
   useEffect(() => {
     const fetch = async () => {
@@ -36,7 +38,9 @@ const DashBoard = () => {
           headers: { authorization: token },
         });
         setSpaces(res2.data.spaces);
+        console.log(res.data.user)
         setUser(res.data.user);
+        console.log(userState)
         setAvatar(res.data.avatar);
       } catch (error) {
         toast("Error fetching data");
@@ -76,50 +80,96 @@ const DashBoard = () => {
   return (
     <div className="bg-Hero bg-[#282d4e] text-white min-h-screen flex flex-col">
       {/* Sticky Navbar */}
-      <DashNav />
+      <DashNav setShow={setShow} show={show} />
 
       {/* Main Content Area */}
       <div
         // Push content below the sticky nav (which is ~10vh high)
         className="pt-[10vh] flex-grow overflow-y-auto px-8 mt-[38px] md:mt-0 lg:mt-0"
       >
-        {loading ? (
-          <div className="flex justify-center items-center h-full">
-            <p>Loading...</p>
-          </div>
-        ) : spaces.length > 0 ? (
-          <div className="grid grid-cols-12 gap-3 p-2">
-            {spaces.map((space) => (
-              <div
-                key={space.id}
-                className="col-span-12 md:col-span-6 lg:col-span-4 h-[300px] p-2"
-              >
-                <div className="w-full h-[80%]">
-                  <img
-                    onClick={() => navigate(`/space/${space.id}`)}
-                    className="w-full h-full rounded-xl hover:border-4 hover:border-[#545c8f] cursor-pointer"
-                    src={space.thumbnail}
-                    alt="Space thumbnail"
-                  />
-                </div>
-                <div className="flex w-full justify-between items-center p-2">
-                  <h1>{space.name}</h1>
-                  <p
-                    onClick={() => HandleOpenDelete(space.id)}
-                    className="cursor-pointer"
-                  >
-                    <RiDeleteBin7Line width={40} height={40} />
-                  </p>
-                </div>
+        {
+          show === 0 ? (
+            <div className="my-4">
+            {loading ? (
+              <div className="flex justify-center items-center h-[80vh]">
+                <p>Loading...</p>
               </div>
-            ))}
-          </div>
-        ) : (
-          // Center "No Space Found" message
-          <div className="flex justify-center items-center h-full">
-            <p>No Space Found! Create New Space.</p>
-          </div>
-        )}
+            ) : spaces.length > 0 ? (
+              <div className="grid grid-cols-12 gap-3 p-2">
+                {spaces.map((space) => (
+                  <div
+                    key={space.id}
+                    className="col-span-12 md:col-span-6 lg:col-span-4 h-[300px] p-2"
+                  >
+                    <div className="w-full h-[80%]">
+                      <img
+                        onClick={() => navigate(`/space/${space.id}`)}
+                        className="w-full h-full rounded-xl hover:border-4 hover:border-[#545c8f] cursor-pointer"
+                        src={space.thumbnail}
+                        alt="Space thumbnail"
+                      />
+                    </div>
+                    <div className="flex w-full justify-between items-center p-2">
+                      <h1>{space.name}</h1>
+                      <p
+                        onClick={() => HandleOpenDelete(space.id)}
+                        className="cursor-pointer"
+                      >
+                        <RiDeleteBin7Line width={40} height={40} />
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              // Center "No Space Found" message
+              <div className="flex justify-center items-center h-[80vh]">
+                <p>No Space Found! Create New Space.</p>
+              </div>
+            )}
+            </div>
+          ):(
+            <div className="my-4">
+            {loading ? (
+              <div className="flex justify-center items-center h-[80vh]">
+                <p>Loading...</p>
+              </div>
+            ) : user?.memberOf.length > 0 ? (
+              <div className="grid grid-cols-12 gap-3 p-2">
+                {user?.memberOf.map((space) => (
+                  <div
+                    key={space.id}
+                    className="col-span-12 md:col-span-6 lg:col-span-4 h-[300px] p-2"
+                  >
+                    <div className="w-full h-[80%]">
+                      <img
+                        onClick={() => navigate(`/space/${space.id}`)}
+                        className="w-full h-full rounded-xl hover:border-4 hover:border-[#545c8f] cursor-pointer"
+                        src={space.thumbnail}
+                        alt="Space thumbnail"
+                      />
+                    </div>
+                    <div className="flex w-full justify-between items-center p-2">
+                      <h1>{space.name}</h1>
+                      {/* <p
+                        onClick={() => HandleOpenDelete(space.id)}
+                        className="cursor-pointer"
+                      >
+                        <RiDeleteBin7Line width={40} height={40} />
+                      </p> */}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              // Center "No Space Found" message
+              <div className="flex justify-center items-center h-[80vh]">
+                <p>No Space Assigned!</p>
+              </div>
+            )}
+            </div>
+          )
+        }
       </div>
 
       {/* Delete Confirmation Modal */}

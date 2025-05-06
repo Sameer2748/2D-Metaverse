@@ -40,6 +40,15 @@ userRouter.get("/metadata", userMiddleware, async (req, res) => {
     where: {
       id: req.userId,
     },
+    include: {
+      memberOf: {
+        select: {
+          id: true,
+          name: true,
+          thumbnail: true,
+        },
+      },
+    },
   });
   console.log("user", user);
 
