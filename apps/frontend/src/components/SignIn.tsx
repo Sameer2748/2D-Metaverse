@@ -83,9 +83,9 @@ const SignIn = () => {
 
         <div className="w-full mt-2 flex flex-col justify-center items-center">
           <div className="w-[80%] p-1 flex flex-col justify-center gap-1">
-            <p className="text-gray-600 text-sm">Email</p>
+            <p className="text-gray-600 text-sm">Username</p>
             <input
-              type="text"
+              type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="bg-transparent border border-gray-500 text-black rounded-lg h-[40px] p-2 focus:outline-none focus:ring-0"

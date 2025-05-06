@@ -40,7 +40,7 @@ const DashBoard = () => {
         setSpaces(res2.data.spaces);
         console.log(res.data.user)
         setUser(res.data.user);
-        console.log(userState)
+        console.log(user)
         setAvatar(res.data.avatar);
       } catch (error) {
         toast("Error fetching data");
