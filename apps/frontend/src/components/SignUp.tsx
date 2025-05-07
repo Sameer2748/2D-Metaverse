@@ -4,12 +4,17 @@ import { IoEyeOutline, IoEyeOffOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { BACKEND_URL } from "../config";
+import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
+import { jwtDecode } from "jwt-decode";
+import { useSetRecoilState } from "recoil";
+import { userState } from "../store/userAtom";
 
 const SignUp = () => {
   const [show, setShow] = useState(false);
   const [loading, setloading] = useState(false);
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
+  const setUser = useSetRecoilState(userState);
 
   const [type, setType] = useState<"user" | "admin">("user");
 
@@ -23,10 +28,14 @@ const SignUp = () => {
     e.preventDefault();
 
     try {
-      // Handle Sign-In Logic Here
-      // Handle Sign-In Logic Here
+      
       if(avatarId === null) {
         toast("Please select an avatar");
+        setloading(false);
+        return;
+      }
+      if(password === ""){
+        toast("Please enter password");
         setloading(false);
         return;
       }
@@ -38,8 +47,15 @@ const SignUp = () => {
         avatarId,
       });
       console.log(user);
+      console.log(user.data.token);
+            await localStorage.setItem("token", `Bearer ${user.data.token}`);
+      
+            const res = await axios.get(`${BACKEND_URL}/user/metadata`, {
+              headers: { authorization: `Bearer ${user.data.token}` },
+            });
+            setUser(res.data.user);
+            navigate("/dashboard");
       toast("logged in successfully");
-      navigate("/signIn");
       setloading(false);
     } catch (error: any) {
       setloading(false);
@@ -47,6 +63,7 @@ const SignUp = () => {
       toast(error.response.data.message);
     }
   };
+ 
 
   useEffect(() => {
     const fetch = async () => {

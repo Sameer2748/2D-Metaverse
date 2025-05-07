@@ -6,6 +6,12 @@ import { toast } from "sonner";
 import { BACKEND_URL } from "../config";
 import { useSetRecoilState } from "recoil";
 import { userState } from "../store/userAtom";
+import {jwtDecode} from 'jwt-decode';
+import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
+
+
+// 386994660882-h7rb1picvn8bj50mb28dvl4tfg09dghh.apps.googleusercontent.com
+// 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
 
 const SignIn = () => {
   const setUser = useSetRecoilState(userState);
@@ -42,6 +48,28 @@ const SignIn = () => {
     }
   };
 
+  const handleGoogleLogin = async (credentialResponse) => {
+    try {
+      const decoded = jwtDecode(credentialResponse.credential);
+      console.log(decoded); // This will give you user details from Google
+      
+      const { email, name, sub } = decoded;
+
+      // Call your backend to register/login the user
+      const response = await axios.post(`${BACKEND_URL}/auth/google`, {
+        email,
+        name,
+        googleId: sub,
+      });
+
+      await localStorage.setItem("token", `Bearer ${response.data.token}`);
+      setUser(response.data.user);
+      navigate("/dashboard");
+    } catch (error) {
+      console.error("Google Login Failed:", error);
+    }
+  };
+
   useEffect(() => {
     const fetch = async () => {
       const token = await localStorage.getItem("token");
@@ -54,7 +82,7 @@ const SignIn = () => {
 
   return (
     <div className="w-full h-screen flex justify-center items-center bg-logbg">
-      <div className="w-[450px] h-[440px] bg-white text-black flex flex-col  items-center rounded-xl p-2">
+      <div className="w-[450px] h-[490px] bg-white text-black flex flex-col  items-center rounded-xl p-2">
         <div className="flex gap-16 pt-6">
           <img
             className=" animate-bounce"
@@ -131,7 +159,18 @@ const SignIn = () => {
             Sign In
           </button>
         )}
-        <p className="pt-2 mt-5">
+        <div className="w-[80%] h-[1px] bg-gray-600 mt-4"></div>
+         <div className="mt-4">
+         <GoogleOAuthProvider  clientId="386994660882-h7rb1picvn8bj50mb28dvl4tfg09dghh.apps.googleusercontent.com">
+      <GoogleLogin
+        onSuccess={handleGoogleLogin}
+        onError={() => {
+          console.log('Login Failed');
+        }}
+        />
+    </GoogleOAuthProvider>
+        </div>
+         <p className=" mt-5">
           Don't have an account?{" "}
           <span
             className="text-blue-600 cursor-pointer"
@@ -140,6 +179,8 @@ const SignIn = () => {
             Sign Up
           </span>
         </p>
+       
+       
       </div>
     </div>
   );
