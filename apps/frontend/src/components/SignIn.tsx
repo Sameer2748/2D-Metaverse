@@ -13,6 +13,7 @@ import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
 const SignIn = () => {
   const setUser = useSetRecoilState(userState);
 
+
   const [show, setShow] = useState(false);
   const [email, setEmail] = useState("");
   const [loading, setloading] = useState(false);
@@ -158,7 +159,7 @@ const SignIn = () => {
         )}
         <div className="w-[80%] h-[1px] bg-gray-600 mt-4"></div>
          <div className="mt-4">
-         <GoogleOAuthProvider  clientId={process.env.GOOGLE_CLIENT_ID}>
+         <GoogleOAuthProvider  clientId={"386994660882-h7rb1picvn8bj50mb28dvl4tfg09dghh.apps.googleusercontent.com"}>
       <GoogleLogin
         onSuccess={handleGoogleLogin}
         onError={() => {
