@@ -10,9 +10,6 @@ import {jwtDecode} from 'jwt-decode';
 import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
 
 
-// 386994660882-h7rb1picvn8bj50mb28dvl4tfg09dghh.apps.googleusercontent.com
-// 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
-
 const SignIn = () => {
   const setUser = useSetRecoilState(userState);
 
@@ -161,7 +158,7 @@ const SignIn = () => {
         )}
         <div className="w-[80%] h-[1px] bg-gray-600 mt-4"></div>
          <div className="mt-4">
-         <GoogleOAuthProvider  clientId="386994660882-h7rb1picvn8bj50mb28dvl4tfg09dghh.apps.googleusercontent.com">
+         <GoogleOAuthProvider  clientId={process.env.GOOGLE_CLIENT_ID}>
       <GoogleLogin
         onSuccess={handleGoogleLogin}
         onError={() => {
