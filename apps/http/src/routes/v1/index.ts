@@ -7,6 +7,8 @@ import { hash, compare } from "../../scrypt";
 import client from "@metaverse/db/client";
 import jwt from "jsonwebtoken";
 import { JWT_PASSWORD } from "../../config";
+import authRoutes from "./auth";
+
 
 export const router = Router();
 
@@ -31,8 +33,19 @@ router.post("/signup", async (req, res) => {
         avatarId: parsedData.data.avatarId,
       },
     });
+    const token = jwt.sign(
+      {
+        name: user.name,
+        userId: user.id,
+        role: user.role,
+      },
+      JWT_PASSWORD
+    );
+
     res.json({
       userId: user.id,
+      user,
+      token
     });
     console.log("inside signup");
   } catch (e) {
@@ -125,6 +138,8 @@ router.get("/maps", async (req, res) => {
   const maps = await client.map.findMany();
   res.json({ maps });
 });
+
+router.use("/auth", authRoutes);
 
 router.use("/user", userRouter);
 router.use("/space", spaceRouter);
